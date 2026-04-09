@@ -320,7 +320,7 @@ dump_attr_set_list(struct dxil_dumper *d, struct list_head *list)
    int attr_id = 1;
    list_for_each_entry(struct attrib_set, attr, list, head) {
       _mesa_string_buffer_printf(d->buf, "  #%d: {", attr_id++);
-      for (unsigned i = 0; i < attr->num_attrs; ++i) {
+      /*for (unsigned i = 0; i < attr->num_attrs; ++i) {
          if (i > 0)
             _mesa_string_buffer_append_char(d->buf, ' ');
 
@@ -345,7 +345,7 @@ dump_attr_set_list(struct dxil_dumper *d, struct list_head *list)
             _mesa_string_buffer_append(d->buf, attr->attrs[i].value.str);
             _mesa_string_buffer_append_char(d->buf, '"');
          }
-      }
+      }*/
       _mesa_string_buffer_append(d->buf, "}\n");
    }
    dxil_dump_indention_dec(d);
@@ -431,7 +431,9 @@ dump_instrs(struct dxil_dumper *d, struct list_head *list)
       case INSTR_CALL:  dump_instr_call(d, &instr->call); break;
       case INSTR_RET:   dump_instr_ret(d, &instr->ret); break;
       case INSTR_EXTRACTVAL: dump_instr_extractval(d, &instr->extractval); break;
+      case INSTR_EXTRACTELT: dump_instr_extractelt(d, &instr->extractelt); break;
       case INSTR_BR:  dump_instr_branch(d, &instr->br); break;
+      case INSTR_UNREACHABLE: dump_instr_unreachable(d); break;
       case INSTR_PHI:  dump_instr_phi(d, &instr->phi); break;
       case INSTR_ALLOCA: dump_instr_alloca(d, &instr->alloca); break;
       case INSTR_GEP: dump_instr_gep(d, &instr->gep); break;
@@ -521,6 +523,15 @@ dump_instr_extractval(struct dxil_dumper *d, struct dxil_instr_extractval *extr)
 }
 
 static void
+dump_instr_extractelt(struct dxil_dumper *d, struct dxil_instr_extractelt *extr)
+{
+   _mesa_string_buffer_append(d->buf, "extractelement ");
+   dump_type_name(d, extr->type);
+   dump_value(d, extr->src);
+   dump_value(d, extr->idx);
+}
+
+static void
 dump_instr_branch(struct dxil_dumper *d, struct dxil_instr_br *br)
 {
    _mesa_string_buffer_append(d->buf, "branch ");
@@ -529,6 +540,12 @@ dump_instr_branch(struct dxil_dumper *d, struct dxil_instr_br *br)
    else
       _mesa_string_buffer_append(d->buf, " (uncond)");
    _mesa_string_buffer_printf(d->buf, " %d %d", br->succ[0], br->succ[1]);
+}
+
+static void
+dump_instr_unreachable(struct dxil_dumper *d)
+{
+   _mesa_string_buffer_append(d->buf, "unreachable");
 }
 
 static void

@@ -228,6 +228,8 @@ get_shader_kind_str(enum dxil_shader_kind kind)
       return "ds";
    case DXIL_COMPUTE_SHADER:
       return "cs";
+   case DXIL_LIBRARY_SHADER:
+      return "lib";
    default:
       UNREACHABLE("invalid shader kind");
    }
@@ -236,7 +238,8 @@ get_shader_kind_str(enum dxil_shader_kind kind)
 static bool
 emit_dx_shader_model(struct dxil_module *m)
 {
-   const struct dxil_mdnode *type_node = dxil_get_metadata_string(m, get_shader_kind_str(m->shader_kind));
+   enum dxil_shader_kind shader_kind = m->emit_library ? DXIL_LIBRARY_SHADER : m->shader_kind;
+   const struct dxil_mdnode *type_node = dxil_get_metadata_string(m, get_shader_kind_str(shader_kind));
    const struct dxil_mdnode *major_node = dxil_get_metadata_int32(m, m->major_version);
    const struct dxil_mdnode *minor_node = dxil_get_metadata_int32(m, m->minor_version);
    const struct dxil_mdnode *shader_model[] = { type_node, major_node,
@@ -380,8 +383,88 @@ enum dxil_intr {
    DXIL_INTR_RAW_BUFFER_LOAD = 139,
    DXIL_INTR_RAW_BUFFER_STORE = 140,
 
+   DXIL_INTR_INSTANCE_ID = 141,
+   DXIL_INTR_INSTANCE_INDEX = 142,
+
+   DXIL_INTR_HIT_KIND = 143,
+
+   DXIL_INTR_RAY_FLAGS = 144,
+
+   DXIL_INTR_DISPATCH_RAYS_INDEX = 145,
+   DXIL_INTR_DISPATCH_RAYS_DIMENSIONS = 146,
+
+   DXIL_INTR_WORLD_RAY_ORIGIN = 147,
+   DXIL_INTR_WORLD_RAY_DIRECTION = 148,
+
+   DXIL_INTR_OBJECT_RAY_ORIGIN = 149,
+   DXIL_INTR_OBJECT_RAY_DIRECTION = 150,
+
+   DXIL_INTR_OBJECT_TO_WORLD = 151,
+   DXIL_INTR_WORLD_TO_OBJECT = 152,
+
+   DXIL_INTR_RAY_T_MIN = 153,
+   DXIL_INTR_RAY_T_CURRENT = 154,
+
+   DXIL_INTR_IGNORE_HIT = 155,
+   DXIL_INTR_ACCEPT_HIT_AND_END_SEARCH = 156,
+   DXIL_INTR_TRACE_RAY = 157,
+   DXIL_INTR_REPORT_HIT = 158,
+   DXIL_INTR_CALL_SHADER = 159,
+
+   DXIL_INTR_CREATE_HANDLE_FOR_LIB = 160,
+
+   DXIL_INTR_PRIMITIVE_INDEX = 161,
+
    DXIL_INTR_DOT4_ADD_I8_PACKED = 163,
    DXIL_INTR_DOT4_ADD_U8_PACKED = 164,
+
+   DXIL_INTR_ALLOCATE_RAY_QUERY = 178,
+   DXIL_INTR_TRACE_RAY_INLINE = 179,
+   DXIL_INTR_RAY_QUERY_PROCEED = 180,
+   DXIL_INTR_RAY_QUERY_ABORT = 181,
+
+   DXIL_INTR_RAY_QUERY_COMMIT_NON_OPAQUE_TRIANGLE_HIT = 182,
+   DXIL_INTR_RAY_QUERY_COMMIT_PROCEDURAL_PRIMITIVE_HIT = 183,
+
+   DXIL_INTR_RAY_QUERY_COMMITTED_STATUS = 184,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_TYPE = 185,
+
+   DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_TO_WORLD_3X4 = 186,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_WORLD_TO_OBJECT_3X4 = 187,
+   DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_TO_WORLD_3X4 = 188,
+   DXIL_INTR_RAY_QUERY_COMMITTED_WORLD_TO_OBJECT_3X4 = 189,
+
+   DXIL_INTR_RAY_QUERY_CANDIDATE_PROCEDURAL_PRIMITIVE_NON_OPAQUE = 190,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_FRONT_FACE = 191,
+   DXIL_INTR_RAY_QUERY_COMMITTED_TRIANGLE_FRONT_FACE = 192,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_BARYCENTRICS = 193,
+   DXIL_INTR_RAY_QUERY_COMMITTED_TRIANGLE_BARYCENTRICS = 194,
+
+   DXIL_INTR_RAY_QUERY_RAY_FLAGS = 195,
+   DXIL_INTR_RAY_QUERY_WORLD_RAY_ORIGIN = 196,
+   DXIL_INTR_RAY_QUERY_WORLD_RAY_DIRECTION = 197,
+   DXIL_INTR_RAY_QUERY_RAY_T_MIN = 198,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_RAY_T = 199,
+   DXIL_INTR_RAY_QUERY_COMMITTED_RAY_T = 200,
+
+   DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_INDEX = 201,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_ID = 202,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_GEOMETRY_INDEX = 203,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_PRIMITIVE_INDEX = 204,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_RAY_ORIGIN = 205,
+   DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_RAY_DIRECTION = 206,
+
+   DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_INDEX = 207,
+   DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_ID = 208,
+   DXIL_INTR_RAY_QUERY_COMMITTED_GEOMETRY_INDEX = 209,
+   DXIL_INTR_RAY_QUERY_COMMITTED_PRIMITIVE_INDEX = 210,
+   DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_RAY_ORIGIN = 211,
+   DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_RAY_DIRECTION = 212,
+
+   DXIL_INTR_GEOMETRY_INDEX = 213,
+
+   DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_CONTRIBUTION_TO_HIT_GROUP_INDEX = 214,
+   DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_CONTRIBUTION_TO_HIT_GROUP_INDEX = 215,
 
    DXIL_INTR_ANNOTATE_HANDLE = 216,
    DXIL_INTR_CREATE_HANDLE_FROM_BINDING = 217,
@@ -451,14 +534,16 @@ typedef struct {
 
 static void
 fill_resource_metadata(struct dxil_module *m, const struct dxil_mdnode **fields,
-                       const struct dxil_type *struct_type,
+                       const struct dxil_type *struct_type, const struct dxil_value *global_symbol,
                        const char *name, const resource_array_layout *layout)
 {
-   const struct dxil_type *pointer_type = dxil_module_get_pointer_type(m, struct_type);
-   const struct dxil_value *pointer_undef = dxil_module_get_undef(m, pointer_type);
+   if (!global_symbol) {
+      const struct dxil_type *pointer_type = dxil_module_get_pointer_type(m, struct_type);
+      global_symbol = dxil_module_get_undef(m, pointer_type);
+   }
 
    fields[0] = dxil_get_metadata_int32(m, layout->id); // resource ID
-   fields[1] = dxil_get_metadata_value(m, pointer_type, pointer_undef); // global constant symbol
+   fields[1] = dxil_get_metadata_value(m, dxil_value_get_type(global_symbol), global_symbol); // global constant symbol
    fields[2] = dxil_get_metadata_string(m, name ? name : ""); // name
    fields[3] = dxil_get_metadata_int32(m, layout->space); // space ID
    fields[4] = dxil_get_metadata_int32(m, layout->binding); // lower bound
@@ -467,7 +552,8 @@ fill_resource_metadata(struct dxil_module *m, const struct dxil_mdnode **fields,
 
 static const struct dxil_mdnode *
 emit_srv_metadata(struct dxil_module *m, const struct dxil_type *elem_type,
-                  const char *name, const resource_array_layout *layout,
+                  const struct dxil_value *global_symbol, const char *name,
+                  const resource_array_layout *layout,
                   enum dxil_component_type comp_type,
                   enum dxil_resource_kind res_kind)
 {
@@ -475,9 +561,9 @@ emit_srv_metadata(struct dxil_module *m, const struct dxil_type *elem_type,
 
    const struct dxil_mdnode *metadata_tag_nodes[2];
 
-   fill_resource_metadata(m, fields, elem_type, name, layout);
+   fill_resource_metadata(m, fields, elem_type, global_symbol, name, layout);
    fields[6] = dxil_get_metadata_int32(m, res_kind); // resource shape
-   fields[7] = dxil_get_metadata_int1(m, 0); // sample count
+   fields[7] = dxil_get_metadata_int32(m, 0); // sample count
    if (res_kind != DXIL_RESOURCE_KIND_RAW_BUFFER &&
        res_kind != DXIL_RESOURCE_KIND_STRUCTURED_BUFFER) {
       metadata_tag_nodes[0] = dxil_get_metadata_int32(m, DXIL_TYPED_BUFFER_ELEMENT_TYPE_TAG);
@@ -493,7 +579,8 @@ emit_srv_metadata(struct dxil_module *m, const struct dxil_type *elem_type,
 
 static const struct dxil_mdnode *
 emit_uav_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
-                  const char *name, const resource_array_layout *layout,
+                  const struct dxil_value *global_symbol, const char *name,
+                  const resource_array_layout *layout,
                   enum dxil_component_type comp_type,
                   enum dxil_resource_kind res_kind,
                   enum gl_access_qualifier access)
@@ -502,7 +589,7 @@ emit_uav_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
 
    const struct dxil_mdnode *metadata_tag_nodes[2];
 
-   fill_resource_metadata(m, fields, struct_type, name, layout);
+   fill_resource_metadata(m, fields, struct_type, global_symbol, name, layout);
    fields[6] = dxil_get_metadata_int32(m, res_kind); // resource shape
    fields[7] = dxil_get_metadata_int1(m, (access & ACCESS_COHERENT) != 0); // globally-coherent
    fields[8] = dxil_get_metadata_int1(m, false); // has counter
@@ -522,12 +609,12 @@ emit_uav_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
 
 static const struct dxil_mdnode *
 emit_cbv_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
-                  const char *name, const resource_array_layout *layout,
+                  const struct dxil_value *global_symbol, const char *name, const resource_array_layout *layout,
                   unsigned size)
 {
    const struct dxil_mdnode *fields[8];
 
-   fill_resource_metadata(m, fields, struct_type, name, layout);
+   fill_resource_metadata(m, fields, struct_type, global_symbol, name, layout);
    fields[6] = dxil_get_metadata_int32(m, size); // constant buffer size
    fields[7] = NULL; // metadata
 
@@ -536,12 +623,12 @@ emit_cbv_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
 
 static const struct dxil_mdnode *
 emit_sampler_metadata(struct dxil_module *m, const struct dxil_type *struct_type,
-                      nir_variable *var, const resource_array_layout *layout)
+                      const struct dxil_value *global_symbol, nir_variable *var, const resource_array_layout *layout)
 {
    const struct dxil_mdnode *fields[8];
    const struct glsl_type *type = glsl_without_array(var->type);
 
-   fill_resource_metadata(m, fields, struct_type, var->name, layout);
+   fill_resource_metadata(m, fields, struct_type, global_symbol, var->name, layout);
    enum dxil_sampler_kind sampler_kind = glsl_sampler_type_is_shadow(type) ?
           DXIL_SAMPLER_KIND_COMPARISON : DXIL_SAMPLER_KIND_DEFAULT;
    fields[6] = dxil_get_metadata_int32(m, sampler_kind); // sampler kind
@@ -582,8 +669,10 @@ struct ntd_context {
    const struct dxil_value *sampler_handles[MAX_SAMPLERS];
 
    struct util_dynarray resources;
+   struct util_dynarray runtime_data_resources;
+   struct util_dynarray global_resource_symbols;
 
-   const struct dxil_mdnode *shader_property_nodes[6];
+   const struct dxil_mdnode *shader_property_nodes[8];
    size_t num_shader_property_nodes;
 
    struct dxil_def *defs;
@@ -599,9 +688,14 @@ struct ntd_context {
    nir_function *tess_ctrl_patch_constant_func;
    unsigned tess_input_control_point_count;
 
+   uint32_t payload_size_in_bytes;
+   uint32_t attribute_size_in_bytes;
+
    struct dxil_func_def *main_func_def;
+   const char *main_func_unmangled_name;
    struct dxil_func_def *tess_ctrl_patch_constant_func_def;
    unsigned unnamed_ubo_count;
+   unsigned unnamed_ssbo_count;
 
    BITSET_WORD *float_types;
    BITSET_WORD *int_types;
@@ -1136,6 +1230,59 @@ emit_createhandle_call(struct ntd_context *ctx,
 }
 
 static const struct dxil_value *
+emit_createhandle_for_lib_call(struct ntd_context *ctx,
+                               enum dxil_resource_class resource_class,
+                               uint32_t lower_bound,
+                               unsigned resource_range_id,
+                               const struct dxil_value *index,
+                               const struct dxil_value *global_symbol)
+{
+   const struct dxil_type *ptr_target_type = dxil_type_get_pointer_target_type(dxil_value_get_type(global_symbol));
+
+   const struct dxil_value *load;
+   if (dxil_type_is_array_type(ptr_target_type)) {
+      const struct dxil_value *gep_args[] = {
+         global_symbol,
+         dxil_module_get_int32_const(&ctx->mod, 0),
+         dxil_emit_binop(&ctx->mod, DXIL_BINOP_SUB, index, dxil_module_get_int32_const(&ctx->mod, lower_bound), (enum dxil_opt_flags) 0),
+      };
+      uint32_t struct_field_indices[] = { UINT32_MAX, UINT32_MAX, UINT32_MAX };
+
+      const struct dxil_value *gep = dxil_emit_gep_inbounds(&ctx->mod, gep_args, ARRAY_SIZE(gep_args), struct_field_indices);
+      if (!gep)
+         return NULL;
+
+      load = dxil_emit_load(&ctx->mod, gep, 4, false);
+   } else {
+      load = dxil_emit_load(&ctx->mod, global_symbol, 4, false);
+   }
+
+   if (!load)
+      return NULL;
+
+   const struct dxil_func *func = dxil_get_function_with_struct_type(&ctx->mod, "dx.op.createHandleForLib", dxil_value_get_type(load));
+   if (!func)
+      return NULL;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_CREATE_HANDLE_FOR_LIB),
+      load
+   };
+
+   if (!args[0])
+      return NULL;
+
+   const struct dxil_value *value = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+   if (!value)
+      return NULL;
+
+   if (ctx->mod.minor_version >= 6)
+      value = emit_annotate_handle_from_metadata(ctx, resource_class, resource_range_id, value);
+
+   return value;
+}
+
+static const struct dxil_value *
 emit_createhandle_call_const_index(struct ntd_context *ctx,
                                    enum dxil_resource_class resource_class,
                                    unsigned lower_bound,
@@ -1188,10 +1335,35 @@ emit_createhandle_heap(struct ntd_context *ctx,
    return dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
 }
 
+static const struct dxil_value *
+create_global_resource_symbol(struct ntd_context *ctx,
+                              const resource_array_layout *layout,
+                              const struct dxil_type *type,
+                              int align) {
+   char var_name[256];
+   snprintf(var_name, sizeof(var_name), "res_%d_%d_%d_%d", layout->id, layout->binding, layout->size, layout->space);
+
+   if (ctx->mod.minor_version >= 6) {
+      if (dxil_type_is_array_type(type))
+         type = dxil_module_get_array_type(&ctx->mod, dxil_module_get_handle_type(&ctx->mod), dxil_type_get_num_array_elems(type));
+      else
+         type = dxil_module_get_handle_type(&ctx->mod);
+
+      if (!type)
+         return NULL;
+   }
+
+   return dxil_add_global_ptr_var(&ctx->mod, var_name, type, DXIL_AS_DEFAULT, align, true, NULL);
+}
+
 static void
-add_resource(struct ntd_context *ctx, enum dxil_resource_type type,
+add_resource(struct ntd_context *ctx,
+             enum dxil_resource_class class,
+             enum dxil_resource_type type,
              enum dxil_resource_kind kind,
-             const resource_array_layout *layout)
+             const resource_array_layout *layout,
+             const char *name,
+             const struct dxil_value *global_symbol)
 {
    struct dxil_resource_v0 *resource_v0 = NULL;
    struct dxil_resource_v1 *resource_v1 = NULL;
@@ -1225,6 +1397,21 @@ add_resource(struct ntd_context *ctx, enum dxil_resource_type type,
       /* No flags supported yet */
       resource_v1->resource_flags = 0;
    }
+
+   if (ctx->mod.emit_library) {
+      struct dxil_runtime_data_resource *resource = util_dynarray_grow(&ctx->runtime_data_resources, struct dxil_runtime_data_resource, 1);
+      resource->class = class;
+      resource->kind = kind;
+      resource->id = layout->id;
+      resource->space = layout->space;
+      resource->lower_bound = layout->binding;
+      resource->upper_bound = resource_v0->upper_bound;
+      resource->name = ralloc_strdup(ctx->ralloc_ctx, name);
+
+      assert(global_symbol);
+      const struct dxil_value **global_symbol_element = util_dynarray_grow(&ctx->global_resource_symbols, struct dxil_value *, 1);
+      *global_symbol_element = global_symbol;
+   }
 }
 
 static const struct dxil_value *
@@ -1232,7 +1419,7 @@ emit_createhandle_call_dynamic(struct ntd_context *ctx,
                                enum dxil_resource_class resource_class,
                                unsigned space,
                                unsigned binding,
-                               const struct dxil_value *resource_range_index,
+                               const struct dxil_value *index,
                                bool non_uniform_resource_index)
 {
    unsigned offset = 0;
@@ -1270,11 +1457,19 @@ emit_createhandle_call_dynamic(struct ntd_context *ctx,
       if (resource->space == space &&
           resource->lower_bound <= binding &&
           resource->upper_bound >= binding) {
-         return emit_createhandle_call(ctx, resource_class, resource->lower_bound,
-                                       resource->upper_bound, space,
-                                       i - offset,
-                                       resource_range_index,
-                                       non_uniform_resource_index);
+         if (ctx->mod.emit_library) {
+            const struct dxil_value *global_symbol = *((const struct dxil_value**)ctx->global_resource_symbols.data + i);
+            return emit_createhandle_for_lib_call(ctx, resource_class, resource->lower_bound,
+                                                  i - offset,
+                                                  index,
+                                                  global_symbol);
+         } else {
+            return emit_createhandle_call(ctx, resource_class, resource->lower_bound,
+                                          resource->upper_bound, space,
+                                          i - offset,
+                                          index,
+                                          non_uniform_resource_index);
+         }
       }
    }
 
@@ -1282,7 +1477,7 @@ emit_createhandle_call_dynamic(struct ntd_context *ctx,
 }
 
 static bool
-emit_srv(struct ntd_context *ctx, nir_variable *var, unsigned count)
+emit_srv(struct ntd_context *ctx, nir_variable *var, unsigned count, const char *name)
 {
    unsigned id = util_dynarray_num_elements(&ctx->srv_metadata_nodes, const struct dxil_mdnode *);
    unsigned binding = var->data.binding;
@@ -1305,16 +1500,55 @@ emit_srv(struct ntd_context *ctx, nir_variable *var, unsigned count)
    if (glsl_type_is_array(var->type))
       res_type_as_type = dxil_module_get_array_type(&ctx->mod, res_type_as_type, count);
 
-   const struct dxil_mdnode *srv_meta = emit_srv_metadata(&ctx->mod, res_type_as_type, var->name,
+   const struct dxil_value *global_symbol = NULL;
+   if (ctx->mod.emit_library) {
+      global_symbol = create_global_resource_symbol(ctx, &layout, res_type_as_type, 4);
+      if (!global_symbol)
+         return false;
+   }
+
+   const struct dxil_mdnode *srv_meta = emit_srv_metadata(&ctx->mod, res_type_as_type, global_symbol, name,
                                                           &layout, comp_type, res_kind);
 
    if (!srv_meta)
       return false;
 
    util_dynarray_append(&ctx->srv_metadata_nodes, srv_meta);
-   add_resource(ctx, res_type, res_kind, &layout);
+   add_resource(ctx, DXIL_RESOURCE_CLASS_SRV, res_type, res_kind, &layout, name, global_symbol);
    if (res_type == DXIL_RES_SRV_RAW)
       ctx->mod.raw_and_structured_buffers = true;
+
+   return true;
+}
+
+static bool
+emit_accel_struct(struct ntd_context *ctx, nir_variable *var, unsigned count)
+{
+   unsigned id = util_dynarray_num_elements(&ctx->srv_metadata_nodes, const struct dxil_mdnode *);
+   unsigned binding = var->data.binding;
+   resource_array_layout layout = {id, binding, count, var->data.descriptor_set};
+
+   const struct dxil_type *res_type_as_type = dxil_module_get_res_type(&ctx->mod, DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE,
+                                                                       DXIL_COMP_TYPE_I32, 0, false);
+
+   if (glsl_type_is_array(var->type))
+      res_type_as_type = dxil_module_get_array_type(&ctx->mod, res_type_as_type, count);
+
+   const struct dxil_value *global_symbol = NULL;
+   if (ctx->mod.emit_library) {
+      global_symbol = create_global_resource_symbol(ctx, &layout, res_type_as_type, 4);
+      if (!global_symbol)
+         return false;
+   }
+
+   const struct dxil_mdnode *srv_meta = emit_srv_metadata(&ctx->mod, res_type_as_type, global_symbol, var->name,
+                                                          &layout, DXIL_COMP_TYPE_I32, DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE);
+
+   if (!srv_meta)
+      return false;
+
+   util_dynarray_append(&ctx->srv_metadata_nodes, srv_meta);
+   add_resource(ctx, DXIL_RESOURCE_CLASS_SRV, DXIL_RES_SRV_RAW, DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE, &layout, var->name, global_symbol);
 
    return true;
 }
@@ -1329,7 +1563,15 @@ emit_uav(struct ntd_context *ctx, unsigned binding, unsigned space, unsigned cou
 
    const struct dxil_type *res_type = dxil_module_get_res_type(&ctx->mod, res_kind, comp_type, num_comps, true /* readwrite */);
    res_type = dxil_module_get_array_type(&ctx->mod, res_type, count);
-   const struct dxil_mdnode *uav_meta = emit_uav_metadata(&ctx->mod, res_type, name,
+
+   const struct dxil_value *global_symbol = NULL;
+   if (ctx->mod.emit_library) {
+      global_symbol = create_global_resource_symbol(ctx, &layout, res_type, 4);
+      if (!global_symbol)
+         return false;
+   }
+
+   const struct dxil_mdnode *uav_meta = emit_uav_metadata(&ctx->mod, res_type, global_symbol, name,
                                                           &layout, comp_type, res_kind, access);
 
    if (!uav_meta)
@@ -1340,10 +1582,11 @@ emit_uav(struct ntd_context *ctx, unsigned binding, unsigned space, unsigned cou
        util_dynarray_num_elements(&ctx->uav_metadata_nodes, const struct dxil_mdnode *) > 8)
       ctx->mod.feats.use_64uavs = 1;
 
-   add_resource(ctx, res_kind == DXIL_RESOURCE_KIND_RAW_BUFFER ? DXIL_RES_UAV_RAW : DXIL_RES_UAV_TYPED, res_kind, &layout);
+   add_resource(ctx, DXIL_RESOURCE_CLASS_UAV, res_kind == DXIL_RESOURCE_KIND_RAW_BUFFER ? DXIL_RES_UAV_RAW : DXIL_RES_UAV_TYPED, res_kind, &layout, name, global_symbol);
    if (res_kind == DXIL_RESOURCE_KIND_RAW_BUFFER)
       ctx->mod.raw_and_structured_buffers = true;
-   if (ctx->mod.shader_kind != DXIL_PIXEL_SHADER &&
+   if (!ctx->mod.emit_library &&
+       ctx->mod.shader_kind != DXIL_PIXEL_SHADER &&
        ctx->mod.shader_kind != DXIL_COMPUTE_SHADER)
       ctx->mod.feats.uavs_at_every_stage = true;
 
@@ -1438,12 +1681,18 @@ get_type_for_glsl_type(struct dxil_module *mod, const struct glsl_type *type)
       return dxil_module_get_array_type(mod, get_type_for_glsl_type(mod, glsl_get_array_element(type)),
                                         glsl_array_size(type));
 
+   if (glsl_type_is_matrix(type))
+      return dxil_module_get_array_type(mod, dxil_module_get_vector_type(mod, get_type_for_glsl_base_type(mod, glsl_get_base_type(type)),
+                                        glsl_get_vector_elements(type)), glsl_get_matrix_columns(type));
+
    assert(glsl_type_is_struct(type));
    uint32_t size = glsl_get_length(type);
    const struct dxil_type **fields = calloc(sizeof(const struct dxil_type *), size);
    for (uint32_t i = 0; i < size; ++i)
       fields[i] = get_type_for_glsl_type(mod, glsl_get_struct_field(type, i));
-   const struct dxil_type *ret = dxil_module_get_struct_type(mod, glsl_get_type_name(type), fields, size);
+   char struct_name[256];
+   snprintf(struct_name, sizeof(struct_name), "struct.%s", glsl_get_type_name(type));
+   const struct dxil_type *ret = dxil_module_get_struct_type(mod, struct_name, fields, size);
    free((void *)fields);
    return ret;
 }
@@ -1503,7 +1752,7 @@ emit_global_consts(struct ntd_context *ctx)
       const struct dxil_value *gvar = dxil_add_global_ptr_var(&ctx->mod, var->name,
                                                               dxil_value_get_type(agg_vals),
                                                               DXIL_AS_DEFAULT, 16,
-                                                              agg_vals);
+                                                              true, agg_vals);
       if (!gvar)
          return false;
 
@@ -1528,7 +1777,7 @@ emit_shared_vars(struct ntd_context *ctx)
       const struct dxil_value *gvar = dxil_add_global_ptr_var(&ctx->mod, var->name,
                                                               get_type_for_glsl_type(&ctx->mod, var->type),
                                                               DXIL_AS_GROUPSHARED, 16,
-                                                              NULL);
+                                                              false, NULL);
       if (!gvar)
          return false;
 
@@ -1553,14 +1802,22 @@ emit_cbv(struct ntd_context *ctx, unsigned binding, unsigned space,
    // All ubo[1]s should have been lowered to ubo with static indexing
    const struct dxil_type *final_type = count != 1 ? dxil_module_get_array_type(&ctx->mod, buffer_type, count) : buffer_type;
    resource_array_layout layout = {idx, binding, count, space};
-   const struct dxil_mdnode *cbv_meta = emit_cbv_metadata(&ctx->mod, final_type,
+
+   const struct dxil_value *global_symbol = NULL;
+   if (ctx->mod.emit_library) {
+      global_symbol = create_global_resource_symbol(ctx, &layout, final_type, 0);
+      if (!global_symbol)
+         return false;
+   }
+
+   const struct dxil_mdnode *cbv_meta = emit_cbv_metadata(&ctx->mod, final_type, global_symbol,
                                                           name, &layout, 4 * size);
 
    if (!cbv_meta)
       return false;
 
    util_dynarray_append(&ctx->cbv_metadata_nodes, cbv_meta);
-   add_resource(ctx, DXIL_RES_CBV, DXIL_RESOURCE_KIND_CBUFFER, &layout);
+   add_resource(ctx, DXIL_RESOURCE_CLASS_CBV, DXIL_RES_CBV, DXIL_RESOURCE_KIND_CBUFFER, &layout, name, global_symbol);
 
    return true;
 }
@@ -1600,13 +1857,20 @@ emit_sampler(struct ntd_context *ctx, nir_variable *var, unsigned count)
    if (glsl_type_is_array(var->type))
       sampler_type = dxil_module_get_array_type(&ctx->mod, sampler_type, count);
 
-   const struct dxil_mdnode *sampler_meta = emit_sampler_metadata(&ctx->mod, sampler_type, var, &layout);
+   const struct dxil_value *global_symbol = NULL;
+   if (ctx->mod.emit_library) {
+      global_symbol = create_global_resource_symbol(ctx, &layout, sampler_type, 4);
+      if (!global_symbol)
+         return false;
+   }
+
+   const struct dxil_mdnode *sampler_meta = emit_sampler_metadata(&ctx->mod, sampler_type, global_symbol, var, &layout);
 
    if (!sampler_meta)
       return false;
 
    util_dynarray_append(&ctx->sampler_metadata_nodes, sampler_meta);
-   add_resource(ctx, DXIL_RES_SAMPLER, DXIL_RESOURCE_KIND_SAMPLER, &layout);
+   add_resource(ctx, DXIL_RESOURCE_CLASS_SAMPLER, DXIL_RES_SAMPLER, DXIL_RESOURCE_KIND_SAMPLER, &layout, var->name, global_symbol);
 
    return true;
 }
@@ -1914,7 +2178,7 @@ emit_entrypoint(struct ntd_context *ctx,
    char truncated_name[254] = { 0 };
    strncpy(truncated_name, name, ARRAY_SIZE(truncated_name) - 1);
 
-   const struct dxil_mdnode *func_md = dxil_get_metadata_func(&ctx->mod, func);
+   const struct dxil_mdnode *func_md = func ? dxil_get_metadata_func(&ctx->mod, func) : NULL;
    const struct dxil_mdnode *name_md = dxil_get_metadata_string(&ctx->mod, truncated_name);
    const struct dxil_mdnode *nodes[] = {
       func_md,
@@ -1978,46 +2242,7 @@ emit_tag(struct ntd_context *ctx, enum dxil_shader_tag tag,
 }
 
 static bool
-emit_metadata(struct ntd_context *ctx)
-{
-   /* DXIL versions are 1.x for shader model 6.x */
-   assert(ctx->mod.major_version == 6);
-   unsigned dxilMajor = 1;
-   unsigned dxilMinor = ctx->mod.minor_version;
-   unsigned valMajor = ctx->mod.major_validator;
-   unsigned valMinor = ctx->mod.minor_validator;
-   if (!emit_llvm_ident(&ctx->mod) ||
-       !emit_named_version(&ctx->mod, "dx.version", dxilMajor, dxilMinor) ||
-       !emit_named_version(&ctx->mod, "dx.valver", valMajor, valMinor) ||
-       !emit_dx_shader_model(&ctx->mod))
-      return false;
-
-   const struct dxil_func_def *main_func_def = ctx->main_func_def;
-   if (!main_func_def)
-      return false;
-   const struct dxil_func *main_func = main_func_def->func;
-
-   const struct dxil_mdnode *resources_node = emit_resources(ctx);
-
-   const struct dxil_mdnode *main_entrypoint = dxil_get_metadata_func(&ctx->mod, main_func);
-   const struct dxil_mdnode *node27 = dxil_get_metadata_node(&ctx->mod, NULL, 0);
-
-   const struct dxil_mdnode *node4 = dxil_get_metadata_int32(&ctx->mod, 0);
-   const struct dxil_mdnode *nodes_4_27_27[] = {
-      node4, node27, node27
-   };
-   const struct dxil_mdnode *node28 = dxil_get_metadata_node(&ctx->mod, nodes_4_27_27,
-                                                      ARRAY_SIZE(nodes_4_27_27));
-
-   const struct dxil_mdnode *node29 = dxil_get_metadata_node(&ctx->mod, &node28, 1);
-
-   const struct dxil_mdnode *node3 = dxil_get_metadata_int32(&ctx->mod, 1);
-   const struct dxil_mdnode *main_type_annotation_nodes[] = {
-      node3, main_entrypoint, node29
-   };
-   const struct dxil_mdnode *main_type_annotation = dxil_get_metadata_node(&ctx->mod, main_type_annotation_nodes,
-                                                                           ARRAY_SIZE(main_type_annotation_nodes));
-
+emit_entry_properties(struct ntd_context *ctx) {
    if (ctx->mod.shader_kind == DXIL_GEOMETRY_SHADER) {
       if (!emit_tag(ctx, DXIL_SHADER_TAG_GS_STATE, emit_gs_state(ctx)))
          return false;
@@ -2050,13 +2275,100 @@ emit_metadata(struct ntd_context *ctx)
                return false;
          }
       }
+   } else if (ctx->mod.shader_kind == DXIL_ANY_HIT_SHADER || ctx->mod.shader_kind == DXIL_CLOSEST_HIT_SHADER) {
+      if (!emit_tag(ctx, DXIL_SHADER_TAG_RAY_PAYLOAD_SIZE, dxil_get_metadata_int32(&ctx->mod, ctx->payload_size_in_bytes)))
+         return false;
+      if (!emit_tag(ctx, DXIL_SHADER_TAG_RAY_ATTRIB_SIZE, dxil_get_metadata_int32(&ctx->mod, ctx->attribute_size_in_bytes)))
+         return false;
+   } else if (ctx->mod.shader_kind == DXIL_MISS_SHADER || ctx->mod.shader_kind == DXIL_CALLABLE_SHADER) {
+      if (!emit_tag(ctx, DXIL_SHADER_TAG_RAY_PAYLOAD_SIZE, dxil_get_metadata_int32(&ctx->mod, ctx->payload_size_in_bytes)))
+         return false;
    }
+
+   return true;
+}
+
+static bool
+emit_metadata(struct ntd_context *ctx)
+{
+   /* DXIL versions are 1.x for shader model 6.x */
+   assert(ctx->mod.major_version == 6);
+   unsigned dxilMajor = 1;
+   unsigned dxilMinor = ctx->mod.minor_version;
+   unsigned valMajor = ctx->mod.major_validator;
+   unsigned valMinor = ctx->mod.minor_validator;
+   if (!emit_llvm_ident(&ctx->mod) ||
+       !emit_named_version(&ctx->mod, "dx.version", dxilMajor, dxilMinor) ||
+       !emit_named_version(&ctx->mod, "dx.valver", valMajor, valMinor) ||
+       !emit_dx_shader_model(&ctx->mod))
+      return false;
+
+   const struct dxil_func_def *main_func_def = ctx->main_func_def;
+   if (!main_func_def)
+      return false;
+   const struct dxil_func *main_func = main_func_def->func;
+
+   const struct dxil_mdnode *resources_node = emit_resources(ctx);
+
+   const struct dxil_mdnode *main_entrypoint = dxil_get_metadata_func(&ctx->mod, main_func);
+   const struct dxil_mdnode *empty_node = dxil_get_metadata_node(&ctx->mod, NULL, 0);
+
+   const struct dxil_mdnode *ret_qualifier_node = dxil_get_metadata_int32(&ctx->mod, 1);
+   const struct dxil_mdnode *ret_annotation_nodes[] = {
+      ret_qualifier_node, empty_node, empty_node
+   };
+
+   const struct dxil_mdnode *parameter_annotation_nodes[DXIL_FUNC_MAX_ARGS + 1];
+   parameter_annotation_nodes[0] = dxil_get_metadata_node(&ctx->mod, ret_annotation_nodes,
+                                                          ARRAY_SIZE(ret_annotation_nodes));
+
+   for (uint32_t i = 0; i < dxil_func_get_num_args(main_func); i++) {
+      const struct dxil_func_arg *arg = &main_func_def->args[i];
+      const struct dxil_mdnode *qualifier_node = dxil_get_metadata_int32(&ctx->mod, arg->qualifier);
+
+      const struct dxil_mdnode *field_annotation_node;
+      if (arg->semantic) {
+         const struct dxil_mdnode *field_annotation_type = dxil_get_metadata_int32(&ctx->mod, 4);
+         const struct dxil_mdnode *field_annotation_value = dxil_get_metadata_string(&ctx->mod, arg->semantic);
+
+         const struct dxil_mdnode *field_annotations[] = {
+            field_annotation_type, field_annotation_value
+         };
+
+         field_annotation_node = dxil_get_metadata_node(&ctx->mod, field_annotations, ARRAY_SIZE(field_annotations));
+      } else {
+         field_annotation_node = empty_node;
+      }
+
+      const struct dxil_mdnode *annotation_nodes[] = {
+         qualifier_node, field_annotation_node, empty_node
+      };
+
+      parameter_annotation_nodes[i + 1] = dxil_get_metadata_node(&ctx->mod, annotation_nodes, ARRAY_SIZE(annotation_nodes));
+   }
+
+   const struct dxil_mdnode *parameter_annotations_node = dxil_get_metadata_node(&ctx->mod, parameter_annotation_nodes,
+                                                                                 dxil_func_get_num_args(main_func) + 1);
+
+   const struct dxil_mdnode *annotation_type_node = dxil_get_metadata_int32(&ctx->mod, 1);
+   const struct dxil_mdnode *main_type_annotation_nodes[] = {
+      annotation_type_node, main_entrypoint, parameter_annotations_node
+   };
+   const struct dxil_mdnode *main_type_annotation = dxil_get_metadata_node(&ctx->mod, main_type_annotation_nodes,
+                                                                           ARRAY_SIZE(main_type_annotation_nodes));
 
    uint64_t flags = get_module_flags(ctx);
    if (flags != 0) {
       if (!emit_tag(ctx, DXIL_SHADER_TAG_FLAGS, dxil_get_metadata_int64(&ctx->mod, flags)))
          return false;
    }
+
+   if (!ctx->mod.emit_library) {
+      if (!emit_entry_properties(ctx)) {
+         return false;
+      }
+   }
+
    const struct dxil_mdnode *shader_properties = NULL;
    if (ctx->num_shader_property_nodes > 0) {
       shader_properties = dxil_get_metadata_node(&ctx->mod, ctx->shader_property_nodes,
@@ -2065,9 +2377,36 @@ emit_metadata(struct ntd_context *ctx)
          return false;
    }
 
-   nir_function_impl *entry_func_impl = nir_shader_get_entrypoint(ctx->shader);
-   const struct dxil_mdnode *dx_entry_point = emit_entrypoint(ctx, main_func,
-       entry_func_impl->function->name, get_signatures(&ctx->mod), resources_node, shader_properties);
+   const struct dxil_mdnode *dx_null_entry_point = NULL;
+   const struct dxil_mdnode *dx_entry_point = NULL;
+
+   if (ctx->mod.emit_library) {
+      dx_null_entry_point = emit_entrypoint(ctx, NULL, "", NULL, resources_node, shader_properties);
+
+      ctx->num_shader_property_nodes = 0;
+      if (!emit_tag(ctx, DXIL_SHADER_TAG_SHADER_KIND, dxil_get_metadata_int32(&ctx->mod, ctx->mod.shader_kind)))
+         return false;
+
+      if (!emit_entry_properties(ctx)) {
+         return false;
+      }
+
+      const struct dxil_mdnode *auto_binding_space = dxil_get_metadata_int32(&ctx->mod, 0);
+
+      if (!emit_tag(ctx, DXIL_SHADER_TAG_AUTO_BINDING_SPACE, dxil_get_metadata_node(&ctx->mod, &auto_binding_space, 1)))
+         return false;
+
+      shader_properties = dxil_get_metadata_node(&ctx->mod, ctx->shader_property_nodes,
+                                                 ctx->num_shader_property_nodes);
+
+      dx_entry_point = emit_entrypoint(ctx, main_func,
+                                       dxil_func_get_name(main_func), get_signatures(&ctx->mod), NULL, shader_properties);
+   }
+   else {
+      dx_entry_point = emit_entrypoint(ctx, main_func,
+                                       dxil_func_get_name(main_func), get_signatures(&ctx->mod), resources_node, shader_properties);
+   }
+
    if (!dx_entry_point)
       return false;
 
@@ -2106,11 +2445,20 @@ emit_metadata(struct ntd_context *ctx)
    }
 
    const struct dxil_mdnode *dx_type_annotations[] = { main_type_annotation };
-   return dxil_add_metadata_named_node(&ctx->mod, "dx.typeAnnotations",
-                                       dx_type_annotations,
-                                       ARRAY_SIZE(dx_type_annotations)) &&
-          dxil_add_metadata_named_node(&ctx->mod, "dx.entryPoints",
-                                       &dx_entry_point, 1);
+   if (!dxil_add_metadata_named_node(&ctx->mod, "dx.typeAnnotations",
+                                     dx_type_annotations,
+                                     ARRAY_SIZE(dx_type_annotations)))
+      return false;
+
+   if (ctx->mod.emit_library) {
+      const struct dxil_mdnode *dx_entry_points[] = { dx_null_entry_point, dx_entry_point };
+      return dxil_add_metadata_named_node(&ctx->mod, "dx.entryPoints",
+                                          dx_entry_points, ARRAY_SIZE(dx_entry_points));
+   }
+   else {
+      return dxil_add_metadata_named_node(&ctx->mod, "dx.entryPoints",
+                                          &dx_entry_point, 1);
+   }
 }
 
 static const struct dxil_value *
@@ -3880,7 +4228,7 @@ emit_load_interpolated_input(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 }
 
 static const struct dxil_value *
-deref_to_gep(struct ntd_context *ctx, nir_deref_instr *deref)
+deref_to_gep(struct ntd_context *ctx, nir_deref_instr *deref, const struct dxil_value *component)
 {
    nir_deref_path path;
    nir_deref_path_init(&path, deref, ctx->ralloc_ctx);
@@ -3888,30 +4236,63 @@ deref_to_gep(struct ntd_context *ctx, nir_deref_instr *deref)
    uint32_t count = 0;
    while (path.path[count])
       ++count;
-   
+
+   uint32_t op_count = count + 1;
+   if (component)
+      ++op_count;
+
    const struct dxil_value **gep_indices = ralloc_array(ctx->ralloc_ctx,
                                                        const struct dxil_value *,
-                                                       count + 1);
+                                                       op_count);
+
+   uint32_t *struct_field_indices = ralloc_array(ctx->ralloc_ctx,
+                                                 uint32_t,
+                                                 op_count);
+
    nir_variable *var = path.path[0]->var;
-   const struct dxil_value **var_array;
    switch (deref->modes) {
-   case nir_var_mem_constant: var_array = ctx->consts; break;
-   case nir_var_mem_shared: var_array = ctx->sharedvars; break;
-   case nir_var_function_temp: var_array = ctx->scratchvars; break;
-   default: UNREACHABLE("Invalid deref mode");
+   case nir_var_mem_constant: {
+      gep_indices[0] = ctx->consts[var->data.driver_location];
+   } break;
+   case nir_var_mem_shared: {
+      gep_indices[0] = ctx->sharedvars[var->data.driver_location];
+   } break;
+   case nir_var_function_temp: {
+      gep_indices[0] = ctx->scratchvars[var->data.driver_location];
+   } break;
+   case nir_var_ray_hit_attrib: {
+      if (ctx->mod.shader_kind == DXIL_INTERSECTION_SHADER) {
+         gep_indices[0] = ctx->scratchvars[var->data.driver_location];
+      } else {
+         gep_indices[0] = ctx->main_func_def->args[var->data.driver_location].value;
+      }
+   } break;
+   case nir_var_shader_call_data: {
+      gep_indices[0] = ctx->main_func_def->args[var->data.driver_location].value;
+   } break;
+   default:
+      UNREACHABLE("Invalid deref mode");
    }
-   gep_indices[0] = var_array[var->data.driver_location];
 
-   for (uint32_t i = 0; i < count; ++i)
+   struct_field_indices[0] = UINT32_MAX;
+
+   for (uint32_t i = 0; i < count; ++i) {
       gep_indices[i + 1] = get_src_ssa(ctx, &path.path[i]->def, 0);
+      struct_field_indices[i + 1] = (path.path[i]->deref_type == nir_deref_type_struct ? path.path[i]->strct.index : UINT32_MAX);
+   }
 
-   return dxil_emit_gep_inbounds(&ctx->mod, gep_indices, count + 1);
+   if (component) {
+      gep_indices[op_count - 1] = component;
+      struct_field_indices[op_count - 1] = UINT32_MAX;
+   }
+
+   return dxil_emit_gep_inbounds(&ctx->mod, gep_indices, op_count, struct_field_indices);
 }
 
 static bool
 emit_load_deref(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 {
-   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]));
+   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]), NULL);
    if (!ptr)
       return false;
 
@@ -3920,7 +4301,19 @@ emit_load_deref(struct ntd_context *ctx, nir_intrinsic_instr *intr)
    if (!retval)
       return false;
 
-   store_def(ctx, &intr->def, 0, retval);
+   if (intr->num_components > 1) {
+      for (uint32_t i = 0; i < intr->num_components; i++) {
+         const struct dxil_value *extracted_elt =
+            dxil_emit_extractelt(&ctx->mod, retval, dxil_module_get_int32_const(&ctx->mod, i));
+
+         if (!extracted_elt)
+            return false;
+
+         store_def(ctx, &intr->def, i, extracted_elt);
+      }
+   } else {
+      store_def(ctx, &intr->def, 0, retval);
+   }
    return true;
 }
 
@@ -3928,18 +4321,34 @@ static bool
 emit_store_deref(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 {
    nir_deref_instr *deref = nir_src_as_deref(intr->src[0]);
-   const struct dxil_value *ptr = deref_to_gep(ctx, deref);
-   if (!ptr)
-      return false;
 
-   const struct dxil_value *value = get_src(ctx, &intr->src[1], 0, nir_get_nir_type_for_glsl_type(deref->type));
-   return dxil_emit_store(&ctx->mod, value, ptr, nir_src_bit_size(intr->src[1]) / 8, false);
+   for (uint32_t i = 0; i < intr->num_components; i++) {
+      const struct dxil_value *component = NULL;
+      if (intr->num_components > 1) {
+         component = dxil_module_get_int32_const(&ctx->mod, i);
+         if (!component)
+            return false;
+      }
+
+      const struct dxil_value *ptr = deref_to_gep(ctx, deref, component);
+      if (!ptr)
+         return false;
+
+      const struct dxil_value *value = get_src(ctx, &intr->src[1], i, nir_get_nir_type_for_glsl_type(deref->type));
+      if (!value)
+         return false;
+
+      if (!dxil_emit_store(&ctx->mod, value, ptr, nir_src_bit_size(intr->src[1]) / 8, false))
+         return false;
+   }
+
+   return true;
 }
 
 static bool
 emit_atomic_deref(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 {
-   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]));
+   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]), NULL);
    if (!ptr)
       return false;
    
@@ -3961,7 +4370,7 @@ emit_atomic_deref(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 static bool
 emit_atomic_deref_swap(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 {
-   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]));
+   const struct dxil_value *ptr = deref_to_gep(ctx, nir_src_as_deref(intr->src[0]), NULL);
    if (!ptr)
       return false;
 
@@ -4481,6 +4890,10 @@ emit_load_vulkan_descriptor(struct ntd_context *ctx, nir_intrinsic_instr *intr)
       resource_class = DXIL_RESOURCE_CLASS_UAV;
       resource_kind = DXIL_RESOURCE_KIND_RAW_BUFFER;
       break;
+   case nir_descriptor_type_acceleration_structure:
+      resource_class = DXIL_RESOURCE_CLASS_SRV;
+      resource_kind = DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE;
+      break;
    default:
       UNREACHABLE("unknown descriptor type");
       return false;
@@ -4499,6 +4912,7 @@ emit_load_vulkan_descriptor(struct ntd_context *ctx, nir_intrinsic_instr *intr)
          resource_class = DXIL_RESOURCE_CLASS_SRV;
 
       const struct dxil_value *index_value = get_src(ctx, &intr->src[0], 0, nir_type_uint32);
+
       if (!index_value)
          return false;
 
@@ -4780,6 +5194,499 @@ emit_reduce(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 }
 
 static bool
+emit_load_ray_vector(struct ntd_context* ctx,
+                     nir_intrinsic_instr* intr, const char *name,
+                     int32_t dxil_intr,
+                     enum overload_type overload)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, name, overload);
+   if (!func)
+      return false;
+
+   for (uint32_t i = 0; i < intr->def.num_components; i++) {
+      const struct dxil_value *args[] = {
+         dxil_module_get_int32_const(&ctx->mod, dxil_intr),
+         dxil_module_get_int8_const(&ctx->mod, i)
+      };
+
+      if (!args[0] || !args[1])
+         return false;
+
+      const struct dxil_value *val = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+      if (!val)
+         return false;
+
+      store_def(ctx, &intr->def, i, val);
+   }
+
+   return true;
+}
+
+static bool
+emit_load_ray_matrix(struct ntd_context* ctx,
+                     nir_intrinsic_instr* intr, const char *name,
+                     int32_t dxil_intr,
+                     enum overload_type overload)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, name, overload);
+   if (!func)
+      return false;
+
+   for (uint32_t i = 0; i < intr->def.num_components; i++) {
+      const struct dxil_value *args[] = {
+         dxil_module_get_int32_const(&ctx->mod, dxil_intr),
+         dxil_module_get_int32_const(&ctx->mod, i),
+         dxil_module_get_int8_const(&ctx->mod, nir_intrinsic_column(intr)),
+      };
+
+      if (!args[0] || !args[1] || !args[2])
+         return false;
+
+      const struct dxil_value *val = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+      if (!val)
+         return false;
+
+      store_def(ctx, &intr->def, i, val);
+   }
+
+   return true;
+}
+
+static bool
+emit_trace_ray(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   nir_deref_instr *payload_deref = nir_src_as_deref(intr->src[10]);
+
+   const struct dxil_func *func = dxil_get_function_with_struct_type(&ctx->mod, "dx.op.traceRay",
+                                                                     get_type_for_glsl_type(&ctx->mod, payload_deref->type));
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_TRACE_RAY),
+      get_resource_handle(ctx, &intr->src[0], DXIL_RESOURCE_CLASS_SRV, DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE),
+      get_src(ctx, &intr->src[1], 0, nir_type_int),
+      get_src(ctx, &intr->src[2], 0, nir_type_int),
+      get_src(ctx, &intr->src[3], 0, nir_type_int),
+      get_src(ctx, &intr->src[4], 0, nir_type_int),
+      get_src(ctx, &intr->src[5], 0, nir_type_int),
+      get_src(ctx, &intr->src[6], 0, nir_type_float),
+      get_src(ctx, &intr->src[6], 1, nir_type_float),
+      get_src(ctx, &intr->src[6], 2, nir_type_float),
+      get_src(ctx, &intr->src[7], 0, nir_type_float),
+      get_src(ctx, &intr->src[8], 0, nir_type_float),
+      get_src(ctx, &intr->src[8], 1, nir_type_float),
+      get_src(ctx, &intr->src[8], 2, nir_type_float),
+      get_src(ctx, &intr->src[9], 0, nir_type_float),
+      ctx->scratchvars[payload_deref->var->data.driver_location]
+   };
+
+   if (!args[0] || !args[1] || !args[2] || !args[3] ||
+       !args[4] || !args[5] || !args[6] || !args[7] ||
+       !args[8] || !args[9] || !args[10] || !args[11] ||
+       !args[12] || !args[13] || !args[14] || !args[15])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_report_ray_intersection(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   nir_variable *attrib_var = NULL;
+   nir_foreach_variable_with_modes(var, ctx->shader, nir_var_ray_hit_attrib) {
+      /* The variables should have been wrapped into one struct in an earlier pass. */
+      if (attrib_var)
+         return false;
+
+      attrib_var = var;
+   }
+
+   if (!attrib_var)
+      return false;
+
+   const struct dxil_func *func = dxil_get_function_with_struct_type(&ctx->mod, "dx.op.reportHit", get_type_for_glsl_type(&ctx->mod, attrib_var->type));
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_REPORT_HIT),
+      get_src(ctx, &intr->src[0], 0, nir_type_float),
+      get_src(ctx, &intr->src[1], 0, nir_type_int),
+      ctx->scratchvars[attrib_var->data.driver_location]
+   };
+
+   if (!args[0] || !args[1] || !args[2] || !args[3])
+      return false;
+
+   const struct dxil_value *ret = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+   if (!ret)
+      return false;
+
+   store_def(ctx, &intr->def, 0, ret);
+   return true;
+}
+
+static bool
+emit_execute_callable(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   nir_deref_instr *param_deref = nir_src_as_deref(intr->src[1]);
+
+   const struct dxil_func *func = dxil_get_function_with_struct_type(&ctx->mod, "dx.op.callShader",
+                                                                     get_type_for_glsl_type(&ctx->mod, param_deref->type));
+
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_CALL_SHADER),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+      ctx->scratchvars[param_deref->var->data.driver_location]
+   };
+
+   if (!args[0] || !args[1] || !args[2])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_ray_call_void(struct ntd_context* ctx,
+                   nir_intrinsic_instr* intr, const char* name,
+                   int32_t dxil_intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, name, DXIL_NONE);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, dxil_intr),
+   };
+
+   if (!args[0])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_rq_initialize(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_TraceRayInline", DXIL_NONE);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_TRACE_RAY_INLINE),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+      get_resource_handle(ctx, &intr->src[1], DXIL_RESOURCE_CLASS_SRV, DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE),
+      get_src(ctx, &intr->src[2], 0, nir_type_int),
+      get_src(ctx, &intr->src[3], 0, nir_type_int),
+      get_src(ctx, &intr->src[4], 0, nir_type_float),
+      get_src(ctx, &intr->src[4], 1, nir_type_float),
+      get_src(ctx, &intr->src[4], 2, nir_type_float),
+      get_src(ctx, &intr->src[5], 0, nir_type_float),
+      get_src(ctx, &intr->src[6], 0, nir_type_float),
+      get_src(ctx, &intr->src[6], 1, nir_type_float),
+      get_src(ctx, &intr->src[6], 2, nir_type_float),
+      get_src(ctx, &intr->src[7], 0, nir_type_float),
+   };
+
+   if (!args[0] || !args[1] || !args[2] || !args[3] ||
+       !args[4] || !args[5] || !args[6] || !args[7] ||
+       !args[8] || !args[9] || !args[10] || !args[11] ||
+       !args[12])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_rq_terminate(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_Abort", DXIL_NONE);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_RAY_QUERY_ABORT),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+   };
+
+   if (!args[0] || !args[1])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_rq_proceed(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_Proceed", DXIL_I1);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_RAY_QUERY_PROCEED),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+   };
+
+   if (!args[0] || !args[1])
+      return false;
+
+   const struct dxil_value *ret = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+   if (!ret)
+      return false;
+
+   store_def(ctx, &intr->def, 0, ret);
+   return true;
+}
+
+static bool
+emit_rq_generate_intersection(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_CommitProceduralPrimitiveHit", DXIL_NONE);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_RAY_QUERY_COMMIT_PROCEDURAL_PRIMITIVE_HIT),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+      get_src(ctx, &intr->src[1], 0, nir_type_float),
+   };
+
+   if (!args[0] || !args[1] || !args[2])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+static bool
+emit_rq_confirm_intersection(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_CommitNonOpaqueTriangleHit", DXIL_NONE);
+   if (!func)
+      return false;
+
+   const struct dxil_value* args[] = {
+      dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_RAY_QUERY_COMMIT_NON_OPAQUE_TRIANGLE_HIT),
+      get_src(ctx, &intr->src[0], 0, nir_type_int),
+   };
+
+   if (!args[0] || !args[1])
+      return false;
+
+   return dxil_emit_call_void(&ctx->mod, func, args, ARRAY_SIZE(args));
+}
+
+enum {
+   SCALAR,
+   VECTOR,
+   MATRIX
+};
+
+struct ray_query_value_info {
+   enum dxil_intr candidate_intr;
+   enum dxil_intr committed_intr;
+   uint32_t type;
+   enum overload_type overload;
+};
+
+static const struct ray_query_value_info ray_query_value_infos[] = {
+   [nir_ray_query_value_intersection_type] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_TYPE,
+      DXIL_INTR_RAY_QUERY_COMMITTED_STATUS,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_t] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_RAY_T,
+      DXIL_INTR_RAY_QUERY_COMMITTED_RAY_T,
+      SCALAR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_instance_custom_index] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_INDEX,
+      DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_INDEX,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_instance_id] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_ID,
+      DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_ID,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_instance_sbt_index] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_INSTANCE_CONTRIBUTION_TO_HIT_GROUP_INDEX,
+      DXIL_INTR_RAY_QUERY_COMMITTED_INSTANCE_CONTRIBUTION_TO_HIT_GROUP_INDEX,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_geometry_index] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_GEOMETRY_INDEX,
+      DXIL_INTR_RAY_QUERY_COMMITTED_GEOMETRY_INDEX,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_primitive_index] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_PRIMITIVE_INDEX,
+      DXIL_INTR_RAY_QUERY_COMMITTED_PRIMITIVE_INDEX,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_intersection_barycentrics] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_BARYCENTRICS,
+      DXIL_INTR_RAY_QUERY_COMMITTED_TRIANGLE_BARYCENTRICS,
+      VECTOR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_front_face] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_TRIANGLE_FRONT_FACE,
+      DXIL_INTR_RAY_QUERY_COMMITTED_TRIANGLE_FRONT_FACE,
+      SCALAR,
+      DXIL_I1
+   },
+   [nir_ray_query_value_intersection_object_ray_direction] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_RAY_DIRECTION,
+      DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_RAY_DIRECTION,
+      VECTOR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_object_ray_origin] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_RAY_ORIGIN,
+      DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_RAY_ORIGIN,
+      VECTOR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_object_to_world] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_OBJECT_TO_WORLD_3X4,
+      DXIL_INTR_RAY_QUERY_COMMITTED_OBJECT_TO_WORLD_3X4,
+      MATRIX,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_world_to_object] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_WORLD_TO_OBJECT_3X4,
+      DXIL_INTR_RAY_QUERY_COMMITTED_WORLD_TO_OBJECT_3X4,
+      MATRIX,
+      DXIL_F32
+   },
+   [nir_ray_query_value_intersection_candidate_aabb_opaque] = {
+      DXIL_INTR_RAY_QUERY_CANDIDATE_PROCEDURAL_PRIMITIVE_NON_OPAQUE,
+      DXIL_INTR_RAY_QUERY_CANDIDATE_PROCEDURAL_PRIMITIVE_NON_OPAQUE,
+      SCALAR,
+      DXIL_I1
+   },
+   [nir_ray_query_value_tmin] = {
+      DXIL_INTR_RAY_QUERY_RAY_T_MIN,
+      DXIL_INTR_RAY_QUERY_RAY_T_MIN,
+      SCALAR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_flags] = {
+      DXIL_INTR_RAY_QUERY_RAY_FLAGS,
+      DXIL_INTR_RAY_QUERY_RAY_FLAGS,
+      SCALAR,
+      DXIL_I32
+   },
+   [nir_ray_query_value_world_ray_direction] = {
+      DXIL_INTR_RAY_QUERY_WORLD_RAY_DIRECTION,
+      DXIL_INTR_RAY_QUERY_WORLD_RAY_DIRECTION,
+      VECTOR,
+      DXIL_F32
+   },
+   [nir_ray_query_value_world_ray_origin] = {
+      DXIL_INTR_RAY_QUERY_WORLD_RAY_ORIGIN,
+      DXIL_INTR_RAY_QUERY_WORLD_RAY_ORIGIN,
+      VECTOR,
+      DXIL_F32
+   },
+};
+
+static bool
+emit_rq_load(struct ntd_context* ctx, nir_intrinsic_instr* intr)
+{
+   nir_ray_query_value ray_query_value = nir_intrinsic_ray_query_value(intr);
+   bool committed = nir_intrinsic_committed(intr);
+
+   if (ray_query_value >= ARRAY_SIZE(ray_query_value_infos))
+      return false;
+
+   const struct ray_query_value_info *info = &ray_query_value_infos[ray_query_value];
+
+   switch (info->type) {
+   case SCALAR: {
+      const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_StateScalar", info->overload);
+      if (!func)
+         return false;
+
+      const struct dxil_value *args[] = {
+         dxil_module_get_int32_const(&ctx->mod, committed ? info->committed_intr : info->candidate_intr),
+         get_src(ctx, &intr->src[0], 0, nir_type_int),
+      };
+
+      if (!args[0] || !args[1])
+         return false;
+
+      const struct dxil_value *val = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+      if (!val)
+         return false;
+
+      store_def(ctx, &intr->def, 0, val);
+   } break;
+   case VECTOR: {
+      const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_StateVector", info->overload);
+      if (!func)
+         return false;
+
+      for (uint32_t i = 0; i < intr->def.num_components; i++) {
+         const struct dxil_value *args[] = {
+            dxil_module_get_int32_const(&ctx->mod, committed ? info->committed_intr : info->candidate_intr),
+            get_src(ctx, &intr->src[0], 0, nir_type_int),
+            dxil_module_get_int8_const(&ctx->mod, i)
+         };
+
+         if (!args[0] || !args[1] || !args[2])
+            return false;
+
+         const struct dxil_value *val = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+         if (!val)
+            return false;
+
+         store_def(ctx, &intr->def, i, val);
+      }
+   } break;
+   case MATRIX: {
+      const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.rayQuery_StateMatrix", info->overload);
+      if (!func)
+         return false;
+
+      for (uint32_t i = 0; i < intr->def.num_components; i++) {
+         const struct dxil_value *args[] = {
+            dxil_module_get_int32_const(&ctx->mod, committed ? info->committed_intr : info->candidate_intr),
+            get_src(ctx, &intr->src[0], 0, nir_type_int),
+            dxil_module_get_int32_const(&ctx->mod, i),
+            dxil_module_get_int8_const(&ctx->mod, nir_intrinsic_column(intr)),
+         };
+
+         if (!args[0] || !args[1] || !args[2] || !args[3])
+            return false;
+
+         const struct dxil_value *val = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+         if (!val)
+            return false;
+
+         store_def(ctx, &intr->def, i, val);
+      }
+   } break;
+   default:
+      return false;
+   }
+
+   return true;
+}
+
+static bool
 emit_intrinsic(struct ntd_context *ctx, nir_intrinsic_instr *intr)
 {
    switch (intr->intrinsic) {
@@ -4805,9 +5712,21 @@ emit_intrinsic(struct ntd_context *ctx, nir_intrinsic_instr *intr)
       return emit_atomic_deref_swap(ctx, intr);
    case nir_intrinsic_load_ubo_vec4:
       return emit_load_ubo_vec4(ctx, intr);
-   case nir_intrinsic_load_primitive_id:
-      return emit_load_unary_external_function(ctx, intr, "dx.op.primitiveID",
-                                               DXIL_INTR_PRIMITIVE_ID, nir_type_int);
+   case nir_intrinsic_load_primitive_id: {
+      switch (ctx->mod.shader_kind) {
+         case DXIL_RAYGEN_SHADER:
+         case DXIL_INTERSECTION_SHADER:
+         case DXIL_ANY_HIT_SHADER:
+         case DXIL_CLOSEST_HIT_SHADER:
+         case DXIL_MISS_SHADER:
+         case DXIL_CALLABLE_SHADER:
+            return emit_load_unary_external_function(ctx, intr, "dx.op.primitiveIndex",
+                                                     DXIL_INTR_PRIMITIVE_INDEX, nir_type_int);
+         default:
+            return emit_load_unary_external_function(ctx, intr, "dx.op.primitiveID",
+                                                     DXIL_INTR_PRIMITIVE_ID, nir_type_int);
+      }
+   }
    case nir_intrinsic_load_sample_id:
       return emit_load_sample_id(ctx, intr);
    case nir_intrinsic_load_invocation_id:
@@ -4954,6 +5873,66 @@ emit_intrinsic(struct ntd_context *ctx, nir_intrinsic_instr *intr)
       return emit_load_unary_external_function(ctx, intr, "dx.op.startInstanceLocation",
                                                DXIL_INTR_START_INSTANCE_LOCATION, nir_type_int);
 
+   case nir_intrinsic_load_ray_flags:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.rayFlags", DXIL_INTR_RAY_FLAGS, nir_type_int);
+   case nir_intrinsic_load_ray_geometry_index:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_load_unary_external_function(ctx, intr, "dx.op.geometryIndex", DXIL_INTR_GEOMETRY_INDEX, nir_type_int);
+   case nir_intrinsic_load_ray_hit_kind:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.hitKind", DXIL_INTR_HIT_KIND, nir_type_int);
+   case nir_intrinsic_load_instance_id:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.instanceIndex", DXIL_INTR_INSTANCE_INDEX, nir_type_int);
+   case nir_intrinsic_load_ray_instance_custom_index:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.instanceID", DXIL_INTR_INSTANCE_ID, nir_type_int);
+   case nir_intrinsic_load_ray_launch_id:
+      return emit_load_ray_vector(ctx, intr, "dx.op.dispatchRaysIndex", DXIL_INTR_DISPATCH_RAYS_INDEX, DXIL_I32);
+   case nir_intrinsic_load_ray_launch_size:
+      return emit_load_ray_vector(ctx, intr, "dx.op.dispatchRaysDimensions", DXIL_INTR_DISPATCH_RAYS_DIMENSIONS, DXIL_I32);
+   case nir_intrinsic_load_ray_object_direction:
+      return emit_load_ray_vector(ctx, intr, "dx.op.objectRayDirection", DXIL_INTR_OBJECT_RAY_DIRECTION, DXIL_F32);
+   case nir_intrinsic_load_ray_object_origin:
+      return emit_load_ray_vector(ctx, intr, "dx.op.objectRayOrigin", DXIL_INTR_OBJECT_RAY_ORIGIN, DXIL_F32);
+   case nir_intrinsic_load_ray_object_to_world:
+      return emit_load_ray_matrix(ctx, intr, "dx.op.objectToWorld", DXIL_INTR_OBJECT_TO_WORLD, DXIL_F32);
+   case nir_intrinsic_load_ray_t_max:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.rayTCurrent", DXIL_INTR_RAY_T_CURRENT, nir_type_float);
+   case nir_intrinsic_load_ray_t_min:
+      return emit_load_unary_external_function(ctx, intr, "dx.op.rayTMin", DXIL_INTR_RAY_T_MIN, nir_type_float);
+   case nir_intrinsic_load_ray_world_direction:
+      return emit_load_ray_vector(ctx, intr, "dx.op.worldRayDirection", DXIL_INTR_WORLD_RAY_DIRECTION, DXIL_F32);
+   case nir_intrinsic_load_ray_world_origin:
+      return emit_load_ray_vector(ctx, intr, "dx.op.worldRayOrigin", DXIL_INTR_WORLD_RAY_ORIGIN, DXIL_F32);
+   case nir_intrinsic_load_ray_world_to_object:
+      return emit_load_ray_matrix(ctx, intr, "dx.op.worldToObject", DXIL_INTR_WORLD_TO_OBJECT, DXIL_F32);
+   case nir_intrinsic_terminate_ray:
+      return emit_ray_call_void(ctx, intr, "dx.op.acceptHitAndEndSearch", DXIL_INTR_ACCEPT_HIT_AND_END_SEARCH);
+   case nir_intrinsic_ignore_ray_intersection:
+      return emit_ray_call_void(ctx, intr, "dx.op.ignoreHit", DXIL_INTR_IGNORE_HIT);
+   case nir_intrinsic_trace_ray:
+      return emit_trace_ray(ctx, intr);
+   case nir_intrinsic_report_ray_intersection:
+      return emit_report_ray_intersection(ctx, intr);
+   case nir_intrinsic_execute_callable:
+      return emit_execute_callable(ctx, intr);
+   case nir_intrinsic_rq_initialize:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_initialize(ctx, intr);
+   case nir_intrinsic_rq_terminate:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_terminate(ctx, intr);
+   case nir_intrinsic_rq_proceed:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_proceed(ctx, intr);
+   case nir_intrinsic_rq_generate_intersection:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_generate_intersection(ctx, intr);
+   case nir_intrinsic_rq_confirm_intersection:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_confirm_intersection(ctx, intr);
+   case nir_intrinsic_rq_load:
+      ctx->mod.feats.raytracing_tier_1_1 = 1;
+      return emit_rq_load(ctx, intr);
+
    case nir_intrinsic_load_num_workgroups:
    case nir_intrinsic_load_workgroup_size:
    default:
@@ -5003,7 +5982,27 @@ emit_deref(struct ntd_context* ctx, nir_deref_instr* instr)
       /* Just store the values, we'll use these to build a GEP in the load or store */
       switch (instr->deref_type) {
       case nir_deref_type_var:
-         store_def(ctx, &instr->def, 0, dxil_module_get_int_const(&ctx->mod, 0, instr->def.bit_size));
+         if (var->data.ray_query) {
+            const struct dxil_func *func = dxil_get_function(&ctx->mod, "dx.op.allocateRayQuery", DXIL_NONE);
+            if (!func)
+               return false;
+
+            const struct dxil_value *args[] = {
+               dxil_module_get_int32_const(&ctx->mod, DXIL_INTR_ALLOCATE_RAY_QUERY),
+               dxil_module_get_int32_const(&ctx->mod, 0),
+            };
+
+            if (!args[0] || !args[1])
+               return false;
+
+            const struct dxil_value *value = dxil_emit_call(&ctx->mod, func, args, ARRAY_SIZE(args));
+            if (!value)
+               return false;
+
+            store_def(ctx, &instr->def, 0, value);
+         } else {
+            store_def(ctx, &instr->def, 0, dxil_module_get_int_const(&ctx->mod, 0, instr->def.bit_size));
+         }
          return true;
       case nir_deref_type_array:
          store_def(ctx, &instr->def, 0, get_src(ctx, &instr->arr.index, 0, nir_type_int));
@@ -5099,6 +6098,9 @@ emit_jump(struct ntd_context *ctx, nir_jump_instr *instr)
       assert(instr->instr.block->successors[0]);
       assert(!instr->instr.block->successors[1]);
       return emit_branch(ctx, instr->instr.block->successors[0]->index);
+
+   case nir_jump_halt:
+      return dxil_emit_unreachable(&ctx->mod);
 
    default:
       UNREACHABLE("Unsupported jump type\n");
@@ -5921,11 +6923,29 @@ emit_cbvs(struct ntd_context *ctx)
 }
 
 static bool
+emit_scratch_var(struct ntd_context *ctx, nir_variable* var)
+{
+   const struct dxil_type *type = get_type_for_glsl_type(&ctx->mod, var->type);
+   const struct dxil_value *length = dxil_module_get_int32_const(&ctx->mod, 1);
+   const struct dxil_value *ptr = dxil_emit_alloca(&ctx->mod, type, length, 16);
+   if (!ptr)
+      return false;
+
+   ctx->scratchvars[var->data.driver_location] = ptr;
+   return true;
+}
+
+static bool
 emit_scratch(struct ntd_context *ctx, nir_function_impl *impl)
 {
    uint32_t index = 0;
    nir_foreach_function_temp_variable(var, impl)
       var->data.driver_location = index++;
+
+   if (ctx->mod.shader_kind == DXIL_INTERSECTION_SHADER) {
+      nir_foreach_variable_with_modes(var, ctx->shader, nir_var_ray_hit_attrib)
+         var->data.driver_location = index++;
+   }
 
    if (ctx->scratchvars)
       ralloc_free((void *)ctx->scratchvars);
@@ -5933,13 +6953,15 @@ emit_scratch(struct ntd_context *ctx, nir_function_impl *impl)
    ctx->scratchvars = ralloc_array(ctx->ralloc_ctx, const struct dxil_value *, index);
 
    nir_foreach_function_temp_variable(var, impl) {
-      const struct dxil_type *type = get_type_for_glsl_type(&ctx->mod, var->type);
-      const struct dxil_value *length = dxil_module_get_int32_const(&ctx->mod, 1);
-      const struct dxil_value *ptr = dxil_emit_alloca(&ctx->mod, type, length, 16);
-      if (!ptr)
+      if (!emit_scratch_var(ctx, var))
          return false;
+   }
 
-      ctx->scratchvars[var->data.driver_location] = ptr;
+   if (ctx->mod.shader_kind == DXIL_INTERSECTION_SHADER) {
+      nir_foreach_variable_with_modes(var, ctx->shader, nir_var_ray_hit_attrib) {
+         if (!emit_scratch_var(ctx, var))
+            return false;
+      }
    }
 
    return true;
@@ -5951,6 +6973,8 @@ emit_function(struct ntd_context *ctx, nir_function *func, nir_function_impl *im
    assert(func->num_params == 0);
    nir_metadata_require(impl, nir_metadata_block_index);
 
+   enum dxil_attr_kind enum_attr = DXIL_ATTR_KIND_NONE;
+
    const char *attr_keys[2] = { NULL };
    const char *attr_values[2] = { NULL };
    if (ctx->shader->info.float_controls_execution_mode &
@@ -5961,11 +6985,160 @@ emit_function(struct ntd_context *ctx, nir_function *func, nir_function_impl *im
    else if (ctx->shader->info.float_controls_execution_mode & FLOAT_CONTROLS_DENORM_PRESERVE_FP32)
       attr_values[0] = "preserve";
 
+   const struct dxil_type *arg_types[DXIL_FUNC_MAX_ARGS];
+   uint32_t arg_enum_attrs[DXIL_FUNC_MAX_ARGS];
+   size_t num_arg_types = 0;
+
+   const char *name = func->name;
+
+   nir_variable *payload_var = NULL;
+   bool requires_payload = false;
+
+   nir_variable *attrib_var = NULL;
+   bool requires_attrib = false;
+
+   if (ctx->mod.emit_library && func->is_entrypoint) {
+      enum_attr = DXIL_ATTR_KIND_NO_UNWIND;
+
+      switch (ctx->mod.shader_kind) {
+         case DXIL_ANY_HIT_SHADER:
+         case DXIL_CLOSEST_HIT_SHADER:
+            requires_payload = true;
+            requires_attrib = true;
+            break;
+         case DXIL_MISS_SHADER:
+         case DXIL_CALLABLE_SHADER:
+            requires_payload = true;
+            break;
+      }
+
+      if (requires_payload)
+         ++num_arg_types;
+      if (requires_attrib)
+         ++num_arg_types;
+
+      assert(num_arg_types <= DXIL_FUNC_MAX_ARGS);
+
+      const char *payload_type_name = NULL;
+      const char *attrib_type_name = NULL;
+
+      if (requires_payload) {
+         nir_foreach_variable_with_modes(var, ctx->shader, nir_var_shader_call_data) {
+            /* The variables should have been wrapped into a struct in an earlier pass. */
+            if (payload_var)
+               return false;
+
+            payload_var = var;
+         }
+
+         const struct dxil_type *payload_type;
+         uint32_t payload_enum_attr = (1ull << DXIL_ATTR_KIND_NO_ALIAS) | (1ull << DXIL_ATTR_KIND_NO_CAPTURE);
+
+         if (payload_var) {
+            payload_type = get_type_for_glsl_type(&ctx->mod, payload_var->type);
+            payload_type_name = glsl_get_type_name(payload_var->type);
+
+            payload_var->data.driver_location = 0;
+
+            uint32_t alignment = 0;
+            glsl_get_natural_size_align_bytes(payload_var->type, &ctx->payload_size_in_bytes, &alignment);
+         } else {
+            /* D3D12 runtime does not like this */
+#if 0
+            const struct dxil_type *field_type = dxil_module_get_int_type(&ctx->mod, 32);
+            payload_type = dxil_module_get_struct_type(&ctx->mod, ctx->mod.shader_kind == DXIL_CALLABLE_SHADER ? "struct.__callable_data" : "struct.__ray_payload", &field_type, 1);
+            payload_type_name = ctx->mod.shader_kind == DXIL_CALLABLE_SHADER ? "__callable_data" : "__ray_payload";
+            payload_enum_attr |= (1ull << DXIL_ATTR_KIND_READ_NONE);
+
+            ctx->payload_size_in_bytes = sizeof(uint32_t);
+#else
+            return false;
+#endif
+         }
+
+         if (!payload_type)
+            return false;
+
+         arg_types[0] = dxil_module_get_pointer_type(&ctx->mod, payload_type);
+         arg_enum_attrs[0] = payload_enum_attr;
+      }
+
+      if (requires_attrib) {
+         nir_foreach_variable_with_modes(var, ctx->shader, nir_var_ray_hit_attrib) {
+            /* The variables should have been wrapped into a struct in an earlier pass. */
+            if (attrib_var)
+               return false;
+
+            attrib_var = var;
+         }
+
+         const struct dxil_type *attrib_type;
+         uint32_t attrib_enum_attr = (1ull << DXIL_ATTR_KIND_NO_CAPTURE);
+
+         if (attrib_var) {
+            attrib_type = get_type_for_glsl_type(&ctx->mod, attrib_var->type);
+            attrib_type_name = glsl_get_type_name(attrib_var->type);
+            attrib_enum_attr |= (1ull << DXIL_ATTR_KIND_READ_ONLY);
+
+            attrib_var->data.driver_location = 1;
+
+            uint32_t alignment = 0;
+            glsl_get_natural_size_align_bytes(attrib_var->type, &ctx->attribute_size_in_bytes, &alignment);
+         } else {
+            /* D3D12 runtime does not like this */
+#if 0
+            const struct dxil_type *field_type = dxil_module_get_int_type(&ctx->mod, 32);
+            attrib_type = dxil_module_get_struct_type(&ctx->mod, "struct.__ray_attributes", &field_type, 1);
+            attrib_type_name = "__ray_attributes";
+            attrib_enum_attr |= (1ull << DXIL_ATTR_KIND_READ_NONE);
+
+            ctx->attribute_size_in_bytes = sizeof(uint32_t);
+#else
+            return false;
+#endif
+         }
+
+         if (!attrib_type)
+            return false;
+
+         arg_types[1] = dxil_module_get_pointer_type(&ctx->mod, attrib_type);
+         arg_enum_attrs[1] = attrib_enum_attr;
+      }
+
+      ctx->main_func_unmangled_name = name;
+      if (requires_payload && requires_attrib)
+         name = ralloc_asprintf(ctx->ralloc_ctx, "\01?%s@@YAXU%s@@U%s@@@Z", name, payload_type_name, attrib_type_name);
+      else if (requires_payload)
+         name = ralloc_asprintf(ctx->ralloc_ctx, "\01?%s@@YAXU%s@@@Z", name, payload_type_name);
+      else
+         name = ralloc_asprintf(ctx->ralloc_ctx, "\01?%s@@YAXXZ", name);
+
+      if (!name)
+         return false;
+   }
+
    const struct dxil_type *void_type = dxil_module_get_void_type(&ctx->mod);
-   const struct dxil_type *func_type = dxil_module_add_function_type(&ctx->mod, void_type, NULL, 0);
-   struct dxil_func_def *func_def = dxil_add_function_def(&ctx->mod, func->name, func_type, impl->num_blocks, attr_keys, attr_values);
+   const struct dxil_type *func_type = dxil_module_add_function_type(&ctx->mod, void_type, arg_types, num_arg_types);
+   struct dxil_func_def *func_def = dxil_add_function_def(&ctx->mod, name, func_type, impl->num_blocks, enum_attr, attr_keys, attr_values, arg_enum_attrs);
    if (!func_def)
       return false;
+
+   if (requires_payload) {
+      struct dxil_func_arg *arg = &func_def->args[0];
+      if (ctx->mod.shader_kind == DXIL_CALLABLE_SHADER) {
+         arg->name = payload_var ? payload_var->name : "__callable_data";
+      } else {
+         arg->name = payload_var ? payload_var->name : "__ray_payload";
+         arg->semantic = "SV_RayPayload";
+      }
+      arg->qualifier = DXIL_FUNC_ARG_QUALIFIER_INOUT;
+   }
+   if (requires_attrib) {
+      struct dxil_func_arg *arg = &func_def->args[1];
+      arg->name = attrib_var ? attrib_var->name : "__ray_attributes";
+      arg->semantic = "SV_RayAttributes";
+      arg->qualifier = DXIL_FUNC_ARG_QUALIFIER_IN;
+   }
 
    if (func->is_entrypoint)
       ctx->main_func_def = func_def;
@@ -6033,8 +7206,16 @@ emit_module(struct ntd_context *ctx, const struct nir_to_dxil_options *opts)
    nir_foreach_variable_with_modes(var, ctx->shader, nir_var_uniform) {
       unsigned count = glsl_type_get_texture_count(var->type);
       assert(count == 0 || glsl_type_is_texture(glsl_without_array(var->type)));
-      if (count > 0 && !emit_srv(ctx, var, count))
+      if (count > 0 && !emit_srv(ctx, var, count, var->name))
          return false;
+   }
+
+   /* Acceleration structures */
+   nir_foreach_variable_with_modes(var, ctx->shader, nir_var_uniform) {
+      if (glsl_without_array(var->type) == glsl_uint64_t_type()) {
+         if (!emit_accel_struct(ctx, var, glsl_type_is_array(var->type) ? glsl_get_length(var->type) : 1))
+            return false;
+      }
    }
 
    /* Handle read-only SSBOs as SRVs */
@@ -6044,7 +7225,15 @@ emit_module(struct ntd_context *ctx, const struct nir_to_dxil_options *opts)
             unsigned count = 1;
             if (glsl_type_is_array(var->type))
                count = glsl_get_length(var->type);
-            if (!emit_srv(ctx, var, count))
+
+            const char *name = var->name;
+            char temp_name[30];
+            if (!name || !name[0]) {
+               snprintf(temp_name, sizeof(temp_name), "__unnamed_ssbo_%d", ctx->unnamed_ssbo_count++);
+               name = temp_name;
+            }
+
+            if (!emit_srv(ctx, var, count, name))
                return false;
          }
       }
@@ -6067,9 +7256,17 @@ emit_module(struct ntd_context *ctx, const struct nir_to_dxil_options *opts)
             unsigned count = 1;
             if (glsl_type_is_array(var->type))
                count = glsl_get_length(var->type);
+
+            const char *name = var->name;
+            char temp_name[30];
+            if (!name || !name[0]) {
+               snprintf(temp_name, sizeof(temp_name), "__unnamed_ssbo_%d", ctx->unnamed_ssbo_count++);
+               name = temp_name;
+            }
+
             if (!emit_uav(ctx, var->data.binding, var->data.descriptor_set,
                         count, DXIL_COMP_TYPE_INVALID, 1,
-                        DXIL_RESOURCE_KIND_RAW_BUFFER, var->data.access, var->name))
+                        DXIL_RESOURCE_KIND_RAW_BUFFER, var->data.access, name))
                return false;
             
          }
@@ -6163,6 +7360,12 @@ emit_module(struct ntd_context *ctx, const struct nir_to_dxil_options *opts)
       return false;
    }
 
+   if (ctx->mod.feats.raytracing_tier_1_1 && ctx->mod.minor_version < 5) {
+      ctx->logger->log(ctx->logger->priv,
+                       "Shader uses raytracing tier 1.1, which requires shader model 6.5, but 6.5 is unsupported\n");
+      return false;
+   }
+
    return emit_metadata(ctx) &&
           dxil_emit_module(&ctx->mod);
 }
@@ -6184,6 +7387,18 @@ get_dxil_shader_kind(struct nir_shader *s)
    case MESA_SHADER_KERNEL:
    case MESA_SHADER_COMPUTE:
       return DXIL_COMPUTE_SHADER;
+   case MESA_SHADER_RAYGEN:
+      return DXIL_RAYGEN_SHADER;
+   case MESA_SHADER_ANY_HIT:
+      return DXIL_ANY_HIT_SHADER;
+   case MESA_SHADER_CLOSEST_HIT:
+      return DXIL_CLOSEST_HIT_SHADER;
+   case MESA_SHADER_MISS:
+      return DXIL_MISS_SHADER;
+   case MESA_SHADER_INTERSECTION:
+      return DXIL_INTERSECTION_SHADER;
+   case MESA_SHADER_CALLABLE:
+      return DXIL_CALLABLE_SHADER;
    default:
       UNREACHABLE("unknown shader stage in nir_to_dxil");
       return DXIL_COMPUTE_SHADER;
@@ -6426,6 +7641,19 @@ void dxil_fill_validation_state(struct ntd_context *ctx,
    }
 }
 
+static void
+dxil_fill_runtime_data(struct ntd_context* ctx,
+                       struct dxil_runtime_data* runtime_data) {
+   runtime_data->main_func_name = dxil_func_get_name(ctx->main_func_def->func);
+   runtime_data->main_func_unmangled_name = ctx->main_func_unmangled_name;
+
+   runtime_data->resources = ctx->runtime_data_resources.data;
+   runtime_data->num_resources = ctx->runtime_data_resources.size / sizeof(struct dxil_runtime_data_resource);
+
+   runtime_data->payload_size_in_bytes = ctx->payload_size_in_bytes;
+   runtime_data->attribute_size_in_bytes = ctx->attribute_size_in_bytes;
+}
+
 static nir_variable *
 add_sysvalue(struct ntd_context *ctx,
               uint8_t value, char *name,
@@ -6567,6 +7795,12 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
       return false;
    }
 
+   bool emit_library = mesa_shader_stage_is_rt(s->info.stage);
+   if (emit_library && opts->shader_model_max < SHADER_MODEL_6_3) {
+      debug_printf("D3D12: cannot emit shader model lower than 6.3 with raytracing shader stage\n");
+      return false;
+   }
+
    if (opts->validator_version_max != NO_DXIL_VALIDATION &&
        opts->validator_version_max < dxil_validator_min_capable_version) {
       debug_printf("D3D12: Invalid validator version %d.%d, must be 1.4 or greater\n",
@@ -6604,6 +7838,7 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
    util_dynarray_init(&ctx->resources, ctx->ralloc_ctx);
    dxil_module_init(&ctx->mod, ctx->ralloc_ctx);
    ctx->mod.shader_kind = get_dxil_shader_kind(s);
+   ctx->mod.emit_library = emit_library;
    ctx->mod.major_version = 6;
    /* Use the highest shader model that's supported and can be validated */
    ctx->mod.minor_version =
@@ -6682,12 +7917,14 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
 
    NIR_PASS(_, s, nir_remove_dead_variables,
               nir_var_function_temp | nir_var_mem_constant | nir_var_mem_shared, NULL);
+   
+   if (!emit_library) {
+      if (!allocate_sysvalues(ctx))
+         return false;
 
-   if (!allocate_sysvalues(ctx))
-      return false;
-
-   NIR_PASS(_, s, dxil_nir_lower_sysval_to_load_input, ctx->system_value);
-   NIR_PASS(_, s, nir_opt_dce);
+      NIR_PASS(_, s, dxil_nir_lower_sysval_to_load_input, ctx->system_value);
+      NIR_PASS(_, s, nir_opt_dce);
+   }
 
    /* This needs to be after any copy prop is done to prevent these movs from being erased */
    NIR_PASS(_, s, dxil_nir_move_consts);
@@ -6718,53 +7955,68 @@ nir_to_dxil(struct nir_shader *s, const struct nir_to_dxil_options *opts,
    /* Native low precision disables min-precision */
    if (ctx->mod.feats.native_low_precision)
       ctx->mod.feats.min_precision = false;
+
    if (!dxil_container_add_features(&container, &ctx->mod.feats)) {
       debug_printf("D3D12: dxil_container_add_features failed\n");
       retval = false;
       goto out;
    }
 
-   if (!dxil_container_add_io_signature(&container,
-                                        DXIL_ISG1,
-                                        ctx->mod.num_sig_inputs,
-                                        ctx->mod.inputs,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write input signature\n");
-      retval = false;
-      goto out;
+   if (!ctx->mod.emit_library) {
+      if (!dxil_container_add_io_signature(&container,
+                                           DXIL_ISG1,
+                                           ctx->mod.num_sig_inputs,
+                                           ctx->mod.inputs,
+                                           ctx->mod.minor_validator >= 7)) {
+         debug_printf("D3D12: failed to write input signature\n");
+         retval = false;
+         goto out;
+      }
+
+      if (!dxil_container_add_io_signature(&container,
+                                           DXIL_OSG1,
+                                           ctx->mod.num_sig_outputs,
+                                           ctx->mod.outputs,
+                                           ctx->mod.minor_validator >= 7)) {
+         debug_printf("D3D12: failed to write output signature\n");
+         retval = false;
+         goto out;
+      }
+
+      if ((ctx->mod.shader_kind == DXIL_HULL_SHADER ||
+           ctx->mod.shader_kind == DXIL_DOMAIN_SHADER) &&
+          !dxil_container_add_io_signature(&container,
+                                           DXIL_PSG1,
+                                           ctx->mod.num_sig_patch_consts,
+                                           ctx->mod.patch_consts,
+                                           ctx->mod.minor_validator >= 7)) {
+         debug_printf("D3D12: failed to write patch constant signature\n");
+         retval = false;
+         goto out;
+      }
+
+      struct dxil_validation_state validation_state;
+      memset(&validation_state, 0, sizeof(validation_state));
+      dxil_fill_validation_state(ctx, &validation_state);
+
+      if (!dxil_container_add_state_validation(&container,&ctx->mod,
+                                               &validation_state)) {
+         debug_printf("D3D12: failed to write state-validation\n");
+         retval = false;
+         goto out;
+      }
    }
 
-   if (!dxil_container_add_io_signature(&container,
-                                        DXIL_OSG1,
-                                        ctx->mod.num_sig_outputs,
-                                        ctx->mod.outputs,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write output signature\n");
-      retval = false;
-      goto out;
-   }
+   if (ctx->mod.emit_library) {
+      struct dxil_runtime_data runtime_data;
+      memset(&runtime_data, 0, sizeof(runtime_data));
+      dxil_fill_runtime_data(ctx, &runtime_data);
 
-   if ((ctx->mod.shader_kind == DXIL_HULL_SHADER ||
-        ctx->mod.shader_kind == DXIL_DOMAIN_SHADER) &&
-       !dxil_container_add_io_signature(&container,
-                                        DXIL_PSG1,
-                                        ctx->mod.num_sig_patch_consts,
-                                        ctx->mod.patch_consts,
-                                        ctx->mod.minor_validator >= 7)) {
-      debug_printf("D3D12: failed to write patch constant signature\n");
-      retval = false;
-      goto out;
-   }
-
-   struct dxil_validation_state validation_state;
-   memset(&validation_state, 0, sizeof(validation_state));
-   dxil_fill_validation_state(ctx, &validation_state);
-
-   if (!dxil_container_add_state_validation(&container,&ctx->mod,
-                                            &validation_state)) {
-      debug_printf("D3D12: failed to write state-validation\n");
-      retval = false;
-      goto out;
+      if (!dxil_container_add_runtime_data(&container, &ctx->mod, &runtime_data)) {
+         debug_printf("D3D12: failed to write runtime data\n");
+         retval = false;
+         goto out;
+      }
    }
 
    if (!dxil_container_add_module(&container, &ctx->mod)) {

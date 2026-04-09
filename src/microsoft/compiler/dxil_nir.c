@@ -220,7 +220,9 @@ flatten_constant_initializer(nir_shader *nir, nir_constant *src, nir_constant **
 static bool
 flatten_var_array_types(nir_shader *nir, nir_variable *var)
 {
-   assert(!glsl_type_is_struct(glsl_without_array(var->type)));
+   if (glsl_type_is_struct(glsl_without_array(var->type)))
+      return false;
+
    const struct glsl_type *matrix_type = glsl_without_array(var->type);
    if (!glsl_type_is_array_of_arrays(var->type) && glsl_get_components(matrix_type) == 1)
       return false;
@@ -338,7 +340,9 @@ lower_deref_bit_size(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 static bool
 lower_var_bit_size_types(nir_shader *nir, nir_variable *var, unsigned min_bit_size, unsigned max_bit_size)
 {
-   assert(!glsl_type_is_array_of_arrays(var->type) && !glsl_type_is_struct(var->type));
+   if (glsl_type_is_array_of_arrays(var->type) || glsl_type_is_struct(var->type))
+      return false;
+
    const struct glsl_type *type = glsl_without_array(var->type);
    assert(glsl_type_is_scalar(type));
    enum glsl_base_type base_type = glsl_get_base_type(type);
@@ -2875,4 +2879,334 @@ dxil_nir_kill_unused_outputs(nir_shader *shader, uint64_t next_stage_read_mask, 
    };
    progress |= nir_remove_dead_variables(shader, nir_var_shader_out, &options);
    return progress;
+}
+
+static bool
+lower_rt_payload_to_temp(nir_builder *b,
+                         nir_instr *instr,
+                         void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return false;
+
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+
+   uint32_t src_index = UINT32_MAX;
+
+   if (intr->intrinsic == nir_intrinsic_trace_ray) {
+      src_index = 10;
+   } else if (intr->intrinsic == nir_intrinsic_execute_callable) {
+      src_index = 1;
+   } else {
+      return false;
+   }
+
+   nir_deref_instr *deref = nir_src_as_deref(intr->src[src_index]);
+   if (!deref || deref->deref_type != nir_deref_type_var)
+      return false;
+
+   nir_variable *var = deref->var;
+
+   if (var->data.mode & nir_var_mem_generic)
+      return false;
+
+   b->cursor = nir_before_instr(instr);
+
+   nir_variable *tmp = nir_local_variable_create(b->impl, var->type, NULL);
+   nir_deref_instr *tmp_deref  = nir_build_deref_var(b, tmp);
+
+   nir_copy_deref(b, tmp_deref, deref);
+   nir_src_rewrite(&intr->src[src_index], &tmp_deref->def);
+
+   b->cursor = nir_after_instr(instr);
+   nir_copy_deref(b, deref, tmp_deref);
+
+   return true;
+}
+
+bool
+dxil_nir_lower_rt_payloads_to_temps(nir_shader *shader)
+{
+   return nir_shader_instructions_pass(shader,
+                                       lower_rt_payload_to_temp,
+                                       nir_metadata_control_flow |
+                                       nir_metadata_loop_analysis,
+                                       NULL);
+}
+
+enum {
+   RAY_PAYLOAD,
+   RAY_ATTRIBUTES,
+   CALLABLE_DATA
+};
+
+static const char* name_formats[] = {
+   [RAY_PAYLOAD] = "__ray_payload_%s",
+   [RAY_ATTRIBUTES] = "__ray_attributes_%s",
+   [CALLABLE_DATA] = "__callable_data_%s",
+};
+
+static bool
+wrap_rt_variable_in_struct(nir_variable* var, uint32_t name_format)
+{
+   if (glsl_type_is_struct(var->type))
+      return false;
+
+   char name[256];
+   sprintf(name, name_formats[name_format], glsl_get_type_name(var->type));
+
+   glsl_struct_field field = { var->type, "field" };
+   var->type = glsl_struct_type(&field, 1, name, false);
+
+   return true;
+}
+
+static bool
+convert_rt_intrinsic_derefs_to_structs(struct nir_builder* b,
+                                       nir_instr* instr,
+                                       void* data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return false;
+
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+   uint32_t src_index = UINT32_MAX;
+
+   if (intr->intrinsic == nir_intrinsic_trace_ray) {
+      src_index = 10;
+   } else if (intr->intrinsic == nir_intrinsic_execute_callable) {
+      src_index = 1;
+   } else {
+      return false;
+   }
+
+   nir_deref_instr *deref = nir_src_as_deref(intr->src[src_index]);
+   assert(deref->deref_type == nir_deref_type_var);
+
+   if (deref->type == deref->var->type)
+      return false;
+
+   b->cursor = nir_before_instr(instr);
+
+   nir_src_rewrite(&intr->src[src_index], &nir_build_deref_var(b, deref->var)->def);
+
+   return true;
+}
+
+static bool
+wrap_rt_variables_in_struct(nir_shader* shader, nir_variable_mode mode, nir_variable **out_var)
+{
+   *out_var = NULL;
+   uint32_t count = 0;
+
+   nir_foreach_variable_with_modes(var, shader, mode) {
+      assert(var->data.mode == mode);
+      var->data.driver_location = count;
+      *out_var = var;
+      ++count;
+   }
+
+   if (count == 0)
+      return false;
+
+   bool attribute = (mode & nir_var_ray_hit_attrib) != 0;
+
+   if (count == 1) {
+      return wrap_rt_variable_in_struct(*out_var, attribute ? RAY_ATTRIBUTES : RAY_PAYLOAD);
+   }
+
+   glsl_struct_field *struct_fields = calloc(count, sizeof(glsl_struct_field));
+   nir_foreach_variable_with_modes(var, shader, mode) {
+      glsl_struct_field *struct_field = &struct_fields[var->data.driver_location];
+      struct_field->type = var->type;
+      struct_field->name = var->name;
+   }
+
+   const char *name = attribute ? "__ray_attributes" : "__ray_payload";
+   const glsl_type *struct_type = glsl_struct_type(struct_fields, count, name, false);
+   free(struct_fields);
+
+   *out_var = nir_variable_create(shader, mode, struct_type, name);
+   return true;
+}
+
+struct struct_wrapped_rt_variables {
+   nir_variable *payload_var;
+   nir_variable *attrib_var;
+   nir_variable_mode mode;
+};
+
+static bool
+fix_struct_wrapped_rt_variable_derefs(struct nir_builder* b,
+                                      nir_instr* instr,
+                                      void* data)
+{
+   struct struct_wrapped_rt_variables *data_typed = data;
+
+   if (instr->type != nir_instr_type_deref)
+      return false;
+
+   nir_deref_instr *deref = nir_instr_as_deref(instr);
+
+   if (deref->deref_type != nir_deref_type_var)
+      return false;
+
+   nir_variable *var = deref->var;
+
+   if (!(var->data.mode & data_typed->mode))
+      return false;
+
+   nir_variable *struct_var = NULL;
+   if (data_typed->payload_var && var->data.mode & nir_var_shader_call_data)
+      struct_var = data_typed->payload_var;
+   else if (data_typed->attrib_var && var->data.mode & nir_var_ray_hit_attrib)
+      struct_var = data_typed->attrib_var;
+   else
+      struct_var = var;
+
+   if (deref->type == struct_var->type)
+      return false;
+
+   b->cursor = nir_after_instr(instr);
+
+   nir_deref_instr *var_deref = nir_build_deref_var(b, struct_var);
+   nir_deref_instr *struct_deref = nir_build_deref_struct(b, var_deref, struct_var != var ? var->data.driver_location : 0);
+
+   nir_def_replace(&deref->def, &struct_deref->def);
+
+   return true;
+}
+
+static bool
+rt_can_remove_var(nir_variable *var, void *data)
+{
+   struct struct_wrapped_rt_variables *data_typed = (struct struct_wrapped_rt_variables *)data;
+   return var != data_typed->payload_var && var != data_typed->attrib_var;
+}
+
+bool
+dxil_nir_wrap_rt_variables_in_structs(nir_shader* shader)
+{
+   bool progress = false;
+
+   nir_foreach_function_impl(impl, shader) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr_safe(instr, block) {
+            if (instr->type != nir_instr_type_intrinsic)
+               continue;
+
+            nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+            uint32_t src_index = UINT32_MAX;
+            uint32_t name_format = UINT32_MAX;
+
+            if (intr->intrinsic == nir_intrinsic_trace_ray) {
+               src_index = 10;
+               name_format = RAY_PAYLOAD;
+            } else if (intr->intrinsic == nir_intrinsic_execute_callable) {
+               src_index = 1;
+               name_format = CALLABLE_DATA;
+            } else {
+               continue;
+            }
+
+            nir_deref_instr *deref = nir_src_as_deref(intr->src[src_index]);
+            assert(deref->deref_type == nir_deref_type_var);
+
+            progress |= wrap_rt_variable_in_struct(deref->var, name_format);
+         }
+      }
+   }
+
+   if (progress) {
+      progress |= nir_shader_instructions_pass(shader,
+                                               convert_rt_intrinsic_derefs_to_structs,
+                                               nir_metadata_control_flow |
+                                               nir_metadata_loop_analysis,
+                                               NULL);
+   }
+
+   struct struct_wrapped_rt_variables data;
+   progress |= wrap_rt_variables_in_struct(shader, nir_var_shader_call_data, &data.payload_var);
+   progress |= wrap_rt_variables_in_struct(shader, nir_var_ray_hit_attrib, &data.attrib_var);
+
+   if (progress) {
+      data.mode = nir_var_shader_call_data | nir_var_ray_hit_attrib | nir_var_mem_generic;
+
+      progress |= nir_shader_instructions_pass(shader,
+                                               fix_struct_wrapped_rt_variable_derefs,
+                                               nir_metadata_control_flow |
+                                               nir_metadata_loop_analysis,
+                                               &data);
+   }
+
+   if (progress) {
+      nir_remove_dead_variables_options remove_dead_variables_options = {
+         .can_remove_var = rt_can_remove_var,
+         .can_remove_var_data = &data,
+      };
+
+      progress |= nir_remove_dead_variables(shader, nir_var_shader_call_data | nir_var_ray_hit_attrib, &remove_dead_variables_options);
+   }
+
+   return progress;
+}
+
+static bool
+lower_accel_struct_intrinsics(nir_builder *b,
+                              nir_instr *instr,
+                              void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return false;
+
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+
+   if (intr->intrinsic != nir_intrinsic_vulkan_resource_index &&
+       intr->intrinsic != nir_intrinsic_load_vulkan_descriptor)
+      return false;
+
+   if (intr->def.bit_size != 64 || intr->def.num_components != 1)
+      return false;
+
+   if (nir_intrinsic_desc_type(intr) != nir_descriptor_type_acceleration_structure)
+      return false;
+
+   b->cursor = nir_after_instr(instr);
+
+   nir_def *def;
+   if (intr->intrinsic == nir_intrinsic_vulkan_resource_index) {
+      uint32_t desc_set = nir_intrinsic_desc_set(intr);
+      uint32_t binding = nir_intrinsic_binding(intr);
+
+      struct hash_table_u64 *accel_struct_hash_table = data;
+
+      /* The value doesn't matter as long as it's non zero. */
+      _mesa_hash_table_u64_insert(accel_struct_hash_table, (uint64_t)desc_set | ((uint64_t)binding << 32ull), (void *)(size_t)UINT32_MAX);
+
+      def = nir_vulkan_resource_index(b, 2, 32, intr->src[0].ssa,
+                                      .desc_set = desc_set,
+                                      .binding = binding,
+                                      .desc_type = nir_descriptor_type_acceleration_structure);
+   } else if (intr->intrinsic == nir_intrinsic_load_vulkan_descriptor) {
+      def = nir_load_vulkan_descriptor(b, 2, 32, intr->src[0].ssa,
+                                       .desc_type = nir_descriptor_type_acceleration_structure);
+
+      def = nir_channel(b, def, 0);
+   } else {
+      UNREACHABLE("Unhandled intrinsic type.");
+   }
+
+   nir_def_replace(&intr->def, def);
+
+   return true;
+}
+
+bool
+dxil_nir_lower_accel_struct_intrinsics(nir_shader* shader, struct hash_table_u64 *accel_struct_hash_table)
+{
+   return nir_shader_instructions_pass(shader,
+                                       lower_accel_struct_intrinsics,
+                                       nir_metadata_control_flow |
+                                       nir_metadata_loop_analysis,
+                                       accel_struct_hash_table);
 }

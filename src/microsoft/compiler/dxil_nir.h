@@ -90,6 +90,12 @@ bool dxil_nir_kill_undefined_varyings(nir_shader *shader, uint64_t prev_stage_wr
 bool dxil_nir_kill_unused_outputs(nir_shader *shader, uint64_t next_stage_read_mask,
                                   uint32_t next_stage_patch_read_mask, const BITSET_WORD *next_stage_frac_input_mask);
 
+bool dxil_nir_lower_rt_payloads_to_temps(nir_shader *shader);
+bool dxil_nir_wrap_rt_variables_in_structs(nir_shader* shader);
+bool dxil_nir_lower_accel_struct_intrinsics(nir_shader* shader,
+                                            struct hash_table_u64 *desc_set_binding_hash_table);
+
+
 #ifdef __cplusplus
 }
 #endif

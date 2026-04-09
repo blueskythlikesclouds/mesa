@@ -835,7 +835,7 @@ dxil_module_get_res_type(struct dxil_module *m, enum dxil_resource_kind kind,
       else
          snprintf(vector_name, 64, "vector<%s, %d>", get_res_comp_type_name(comp_type), num_comps);
       char class_name[64] = { 0 };
-      snprintf(class_name, 64, "class.%s%s<%s%s>",
+      snprintf(class_name, 64, "class.%s%s<%s%s >",
                readwrite ? "RW" : "",
                get_res_dimension_type_name(kind),
                vector_name,
@@ -849,6 +849,12 @@ dxil_module_get_res_type(struct dxil_module *m, enum dxil_resource_kind kind,
       char class_name[64] = { 0 };
       snprintf(class_name, 64, "struct.%sByteAddressBuffer", readwrite ? "RW" : "");
       return dxil_module_get_struct_type(m, class_name, &component_type, 1);
+   }
+
+   case DXIL_RESOURCE_KIND_RAYTRACING_ACCELERATION_STRUCTURE:
+   {
+      const struct dxil_type *component_type = dxil_module_get_int_type(m, 32);
+      return dxil_module_get_struct_type(m, "struct.RaytracingAccelerationStructure", &component_type, 1);
    }
 
    default:
@@ -957,6 +963,29 @@ dxil_module_add_function_type(struct dxil_module *m,
    return type;
 }
 
+const struct dxil_type *
+dxil_type_get_pointer_target_type(const struct dxil_type *type)
+{
+   return type->ptr_target_type;
+}
+
+const char *
+dxil_type_get_struct_name(const struct dxil_type* type)
+{
+   return type->struct_def.name;
+}
+
+bool
+dxil_type_is_array_type(const struct dxil_type *type)
+{
+   return type->type == TYPE_ARRAY;
+}
+
+size_t
+dxil_type_get_num_array_elems(const struct dxil_type *type)
+{
+   return type->array_or_vector_def.num_elems;
+}
 
 enum type_codes {
   TYPE_CODE_NUMENTRY = 1,
@@ -1379,9 +1408,31 @@ emit_attrib_group_table(struct dxil_module *m)
    struct attrib_set *as;
    int id = 1;
    LIST_FOR_EACH_ENTRY(as, &m->attr_set_list, head) {
-      if (!emit_attrib_group(m, id, UINT32_MAX, as->attrs, as->num_attrs))
-         return false;
-      id++;
+      const struct attrib_group *func_group = &as->attr_groups[DXIL_ATTR_GROUP_FUNC];
+      if (func_group->num_attrs) {
+         if (!emit_attrib_group(m, id, UINT32_MAX, func_group->attrs, func_group->num_attrs))
+            return false;
+
+         id++;
+      }
+
+      const struct attrib_group *ret_group = &as->attr_groups[DXIL_ATTR_GROUP_RET];
+      if (ret_group->num_attrs) {
+         if (!emit_attrib_group(m, id, 0, ret_group->attrs, ret_group->num_attrs))
+            return false;
+
+         id++;
+      }
+
+      for (uint32_t i = 0; DXIL_ATTR_GROUP_ARG(i) < DXIL_MAX_ATTR_GROUPS; i++) {
+         const struct attrib_group *arg_group = &as->attr_groups[DXIL_ATTR_GROUP_ARG(i)];
+         if (arg_group->num_attrs) {
+            if (!emit_attrib_group(m, id, i + 1, arg_group->attrs, arg_group->num_attrs))
+               return false;
+
+            id++;
+         }
+      }
    }
 
    return exit_block(m);
@@ -1396,9 +1447,25 @@ emit_attribute_table(struct dxil_module *m)
    struct attrib_set *as;
    int id = 1;
    LIST_FOR_EACH_ENTRY(as, &m->attr_set_list, head) {
-      if (!emit_record_int(m, PARAMATTR_CODE_ENTRY, id))
+      uint64_t record[DXIL_MAX_ATTR_GROUPS];
+      uint32_t size = 0;
+
+      if (as->attr_groups[DXIL_ATTR_GROUP_FUNC].num_attrs) {
+         record[size++] = id++;
+      }
+
+      if (as->attr_groups[DXIL_ATTR_GROUP_RET].num_attrs) {
+         record[size++] = id++;
+      }
+
+      for (uint32_t i = 0; DXIL_ATTR_GROUP_ARG(i) < DXIL_MAX_ATTR_GROUPS; i++) {
+         if (as->attr_groups[DXIL_ATTR_GROUP_ARG(i)].num_attrs) {
+            record[size++] = id++;
+         }
+      }
+
+      if (!emit_record(m, PARAMATTR_CODE_ENTRY, record, size))
          return false;
-      id++;
    }
 
    return exit_block(m);
@@ -2249,7 +2316,7 @@ emit_datalayout(struct dxil_module *m, const char *datalayout)
 static const struct dxil_value *
 add_gvar(struct dxil_module *m, const char *name,
          const struct dxil_type *type, const struct dxil_type *value_type,
-         enum dxil_address_space as, int align, const struct dxil_value *value)
+         enum dxil_address_space as, int align, bool constant, const struct dxil_value *value)
 {
    struct dxil_gvar *gvar = ralloc_size(m->ralloc_ctx,
                                         sizeof(struct dxil_gvar));
@@ -2260,7 +2327,7 @@ add_gvar(struct dxil_module *m, const char *name,
    gvar->name = ralloc_strdup(m->ralloc_ctx, name);
    gvar->as = as;
    gvar->align = align;
-   gvar->constant = !!value;
+   gvar->constant = constant;
    gvar->initializer = value;
 
    gvar->value.id = -1;
@@ -2274,19 +2341,19 @@ const struct dxil_value *
 dxil_add_global_var(struct dxil_module *m, const char *name,
                     const struct dxil_type *type,
                     enum dxil_address_space as, int align,
-                    const struct dxil_value *value)
+                    bool constant, const struct dxil_value *value)
 {
-   return add_gvar(m, name, type, type, as, align, value);
+   return add_gvar(m, name, type, type, as, align, constant, value);
 }
 
 const struct dxil_value *
 dxil_add_global_ptr_var(struct dxil_module *m, const char *name,
                         const struct dxil_type *type,
                         enum dxil_address_space as, int align,
-                        const struct dxil_value *value)
+                        bool constant, const struct dxil_value *value)
 {
    return add_gvar(m, name, type, dxil_module_get_pointer_type(m, type),
-                   as, align, value);
+                   as, align, constant, value);
 }
 
 static const struct dxil_func *
@@ -2336,38 +2403,64 @@ static bool attrs_equal(const struct dxil_attrib *a, const struct dxil_attrib *b
    }
 }
 
-static bool attr_sets_equal(unsigned num_attrs, const struct dxil_attrib *a, const struct dxil_attrib *b)
+static bool attr_sets_equal(const struct attrib_group *a, const struct attrib_group *b)
 {
-   for (unsigned i = 0; i < num_attrs; ++i) {
-      if (!attrs_equal(&a[i], &b[i]))
+   for (uint32_t i = 0; i < DXIL_MAX_ATTR_GROUPS; ++i) {
+      if (a[i].num_attrs != b[i].num_attrs)
          return false;
+
+      for (uint32_t j = 0; j < a[i].num_attrs; j++) {
+         if (!attrs_equal(&a[i].attrs[j], &b[i].attrs[j]))
+            return false;
+      }
    }
    return true;
 }
 
 static unsigned
-dxil_get_string_attr_set(struct dxil_module *m,
-                         const char *const *attr_keys, const char *const *attr_values)
+dxil_get_attr_set(struct dxil_module *m,
+                  enum dxil_attr_kind enum_attr,
+                  const char *const *str_attr_keys, const char *const *str_attr_values,
+                  const uint32_t *arg_enum_attrs, uint32_t num_args)
 {
-   if (!attr_keys)
-      return 0;
+   struct attrib_group attr_groups[DXIL_MAX_ATTR_GROUPS];
+   memset(attr_groups, 0, sizeof(attr_groups));
 
-   struct dxil_attrib attrs[2];
-   unsigned num_attrs = 0;
-   for (; num_attrs < ARRAY_SIZE(attrs) && attr_keys[num_attrs]; ++num_attrs) {
-      if (attr_values && attr_values[num_attrs])
-         attrs[num_attrs] = (struct dxil_attrib){ DXIL_ATTR_STRING_VALUE, {.str = attr_keys[num_attrs]}, {.str = attr_values[num_attrs]} };
+   struct attrib_group *attr_group = &attr_groups[DXIL_ATTR_GROUP_FUNC];
+   for (; attr_group->num_attrs < DXIL_MAX_ATTRS && str_attr_keys && str_attr_keys[attr_group->num_attrs]; ++attr_group->num_attrs) {
+      if (str_attr_values && str_attr_values[attr_group->num_attrs])
+         attr_group->attrs[attr_group->num_attrs] = (struct dxil_attrib){ DXIL_ATTR_STRING_VALUE, {.str = str_attr_keys[attr_group->num_attrs]}, {.str = str_attr_values[attr_group->num_attrs]} };
       else
-         attrs[num_attrs] = (struct dxil_attrib){ DXIL_ATTR_STRING, {.str = attr_keys[num_attrs]} };
+         attr_group->attrs[attr_group->num_attrs] = (struct dxil_attrib){ DXIL_ATTR_STRING, {.str = str_attr_keys[attr_group->num_attrs]} };
    }
 
-   if (num_attrs == 0)
+   if (enum_attr != DXIL_ATTR_KIND_NONE) {
+      attr_group->attrs[attr_group->num_attrs] = (struct dxil_attrib){ DXIL_ATTR_ENUM, {.kind = enum_attr} };
+      ++attr_group->num_attrs;
+   }
+
+   uint32_t total_attrs = attr_group->num_attrs;
+
+   for (uint32_t i = 0; i < num_args; i++) {
+      assert(DXIL_ATTR_GROUP_ARG(i) < DXIL_MAX_ATTR_GROUPS);
+      attr_group = &attr_groups[DXIL_ATTR_GROUP_ARG(i)];
+
+      u_foreach_bit64(enum_attr, arg_enum_attrs[i]) {
+         assert(attr_group->num_attrs < DXIL_MAX_ATTRS);
+         attr_group->attrs[attr_group->num_attrs] = (struct dxil_attrib){ DXIL_ATTR_ENUM, {.kind = enum_attr} };
+         ++attr_group->num_attrs;
+      }
+
+      total_attrs += attr_group->num_attrs;
+   }
+
+   if (total_attrs == 0)
       return 0;
 
    int index = 1;
    struct attrib_set *as;
    LIST_FOR_EACH_ENTRY(as, &m->attr_set_list, head) {
-      if (as->num_attrs == num_attrs && attr_sets_equal(num_attrs, as->attrs, attrs))
+      if (attr_sets_equal(as->attr_groups, attr_groups))
          return index;
       index++;
    }
@@ -2376,8 +2469,7 @@ dxil_get_string_attr_set(struct dxil_module *m,
    if (!as)
       return 0;
 
-   memcpy(as->attrs, attrs, sizeof(attrs));
-   as->num_attrs = num_attrs;
+   memcpy(as->attr_groups, attr_groups, sizeof(attr_groups));
 
    list_addtail(&as->head, &m->attr_set_list);
    assert(list_length(&m->attr_set_list) == index);
@@ -2387,11 +2479,13 @@ dxil_get_string_attr_set(struct dxil_module *m,
 struct dxil_func_def *
 dxil_add_function_def(struct dxil_module *m, const char *name,
                       const struct dxil_type *type, unsigned num_blocks,
-                      const char *const *attr_keys, const char *const *attr_values)
+                      enum dxil_attr_kind enum_attr,
+                      const char *const *attr_keys, const char *const *attr_values,
+                      const uint32_t *arg_enum_attrs)
 {
    struct dxil_func_def *def = ralloc_size(m->ralloc_ctx, sizeof(struct dxil_func_def));
 
-   unsigned attr_index = dxil_get_string_attr_set(m, attr_keys, attr_values);
+   unsigned attr_index = dxil_get_attr_set(m, enum_attr, attr_keys, attr_values, arg_enum_attrs, type->function_def.args.num_types);
    def->func = add_function(m, name, type, false, attr_index);
    if (!def->func)
       return NULL;
@@ -2409,6 +2503,17 @@ dxil_add_function_def(struct dxil_module *m, const char *name,
       def->basic_block_ids[i] = -1;
    def->num_basic_block_ids = num_blocks;
 
+   uint32_t num_args = type->function_def.args.num_types;
+   assert(num_args <= DXIL_FUNC_MAX_ARGS);
+
+   for (uint32_t i = 0; i < num_args; i++) {
+      struct dxil_func_arg *arg = &def->args[i];
+      memset(arg, 0, sizeof(struct dxil_func_arg));
+      arg->value = ralloc_size(m->ralloc_ctx, sizeof(struct dxil_value));
+      arg->value->id = -1;
+      arg->value->type = type->function_def.args.types[i];
+   }
+
    list_addtail(&def->head, &m->func_def_list);
    m->cur_emitting_func = def;
 
@@ -2418,16 +2523,18 @@ dxil_add_function_def(struct dxil_module *m, const char *name,
 static unsigned
 get_attr_set(struct dxil_module *m, enum dxil_attr_kind attr)
 {
-   struct dxil_attrib attrs[2] = {
-      { DXIL_ATTR_ENUM, { DXIL_ATTR_KIND_NO_UNWIND } },
-      { DXIL_ATTR_ENUM, { attr } }
-   };
+   struct attrib_group attr_groups[DXIL_MAX_ATTR_GROUPS];
+   memset(attr_groups, 0, sizeof(attr_groups));
 
-   unsigned num_attrs = attr == DXIL_ATTR_KIND_NONE ? 1 : 2;
+   struct attrib_group *attr_group = &attr_groups[DXIL_ATTR_GROUP_FUNC];
+   attr_group->attrs[0] = (struct dxil_attrib){ DXIL_ATTR_ENUM, { DXIL_ATTR_KIND_NO_UNWIND } };
+   attr_group->attrs[1] = (struct dxil_attrib){ DXIL_ATTR_ENUM, { attr } };
+   attr_group->num_attrs = attr == DXIL_ATTR_KIND_NONE ? 1 : 2;
+
    int index = 1;
    struct attrib_set *as;
    LIST_FOR_EACH_ENTRY(as, &m->attr_set_list, head) {
-      if (as->num_attrs == num_attrs && attr_sets_equal(num_attrs, as->attrs, attrs))
+      if (attr_sets_equal(as->attr_groups, attr_groups))
          return index;
       index++;
    }
@@ -2436,8 +2543,7 @@ get_attr_set(struct dxil_module *m, enum dxil_attr_kind attr)
    if (!as)
       return 0;
 
-   memcpy(as->attrs, attrs, sizeof(attrs));
-   as->num_attrs = num_attrs;
+   memcpy(as->attr_groups, attr_groups, sizeof(attr_groups));
 
    list_addtail(&as->head, &m->attr_set_list);
    assert(list_length(&m->attr_set_list) == index);
@@ -2454,6 +2560,18 @@ dxil_add_function_decl(struct dxil_module *m, const char *name,
       return NULL;
 
    return add_function(m, name, type, true, attr_set);
+}
+
+const char *
+dxil_func_get_name(const struct dxil_func *func)
+{
+   return func->name;
+}
+
+uint32_t
+dxil_func_get_num_args(const struct dxil_func* func)
+{
+   return func->type->function_def.args.num_types;
 }
 
 static bool
@@ -2499,7 +2617,7 @@ emit_module_info_global(struct dxil_module *m, const struct dxil_gvar *gvar,
       (gvar->constant ? GVAR_FLAG_CONSTANT : 0),
       gvar->initializer ? gvar->initializer->id + 1 : 0,
       (gvar->initializer ? GVAR_LINKAGE_INTERNAL : GVAR_LINKAGE_EXTERNAL),
-      util_logbase2(gvar->align) + 1,
+      gvar->align ? util_logbase2(gvar->align) + 1 : 0,
       0
    };
    return emit_record_abbrev(&m->buf, 4, simple_gvar_abbr,
@@ -3244,6 +3362,18 @@ dxil_emit_branch(struct dxil_module *m, const struct dxil_value *cond,
    return true;
 }
 
+bool
+dxil_emit_unreachable(struct dxil_module *m) 
+{
+   struct dxil_instr *instr = create_instr(m, INSTR_UNREACHABLE,
+                                           dxil_module_get_void_type(m));
+   if (!instr)
+      return false;
+
+   m->cur_emitting_func->curr_block++;
+   return true;
+}
+
 const struct dxil_value *
 dxil_instr_get_return_value(struct dxil_instr *instr)
 {
@@ -3379,6 +3509,26 @@ dxil_emit_extractval(struct dxil_module *m, const struct dxil_value *src,
 }
 
 const struct dxil_value *
+dxil_emit_extractelt(struct dxil_module *m, const struct dxil_value *src,
+                     const struct dxil_value *index)
+{
+   assert(src->type->type == TYPE_VECTOR);
+
+   struct dxil_instr *instr =
+      create_instr(m, INSTR_EXTRACTELT,
+                   src->type->array_or_vector_def.elem_type);
+   if (!instr)
+      return NULL;
+
+   instr->extractelt.src = src;
+   instr->extractelt.type = src->type;
+   instr->extractelt.idx = index;
+   instr->has_value = true;
+
+   return &instr->value;
+}
+
+const struct dxil_value *
 dxil_emit_alloca(struct dxil_module *m, const struct dxil_type *alloc_type,
                  const struct dxil_value *size,
                  unsigned int align)
@@ -3406,28 +3556,37 @@ dxil_emit_alloca(struct dxil_module *m, const struct dxil_type *alloc_type,
 }
 
 static const struct dxil_type *
-get_deref_type(const struct dxil_type *type)
+get_deref_type(const struct dxil_type *type, uint32_t struct_field_index)
 {
    switch (type->type) {
-   case TYPE_POINTER: return type->ptr_target_type;
-   case TYPE_ARRAY: return type->array_or_vector_def.elem_type;
-   default: UNREACHABLE("unexpected type");
+   case TYPE_POINTER:
+      return type->ptr_target_type;
+   case TYPE_ARRAY:
+      return type->array_or_vector_def.elem_type;
+   case TYPE_STRUCT:
+      assert(struct_field_index < type->struct_def.elem.num_types);
+      return type->struct_def.elem.types[struct_field_index];
+   case TYPE_VECTOR:
+      return type->array_or_vector_def.elem_type;
+   default:
+      UNREACHABLE("unexpected type");
    }
 }
 
 const struct dxil_value *
 dxil_emit_gep_inbounds(struct dxil_module *m,
                        const struct dxil_value **operands,
-                       size_t num_operands)
+                       size_t num_operands,
+                       const uint32_t *struct_field_indices)
 {
    assert(num_operands > 0);
    const struct dxil_type *source_elem_type =
-      get_deref_type(operands[0]->type);
+      get_deref_type(operands[0]->type, struct_field_indices[0]);
 
    const struct dxil_type *type = operands[0]->type;
    for (int i = 1; i < num_operands; ++i) {
       assert(operands[i]->type == get_int32_type(m));
-      type = get_deref_type(type);
+      type = get_deref_type(type, struct_field_indices[i]);
    }
 
    type = dxil_module_get_pointer_type(m, type);
@@ -3646,6 +3805,16 @@ emit_branch(struct dxil_module *m, struct dxil_func_def *func, struct dxil_instr
 }
 
 static bool
+emit_unreachable(struct dxil_module *m, struct dxil_instr *instr)
+{
+   assert(instr->type == INSTR_UNREACHABLE);
+
+   uint64_t data[] = { FUNC_CODE_INST_UNREACHABLE };
+   return emit_func_abbrev_record(m, FUNC_ABBREV_UNREACHABLE,
+                                  data, ARRAY_SIZE(data));
+}
+
+static bool
 emit_phi(struct dxil_module *m, struct dxil_func_def *func, struct dxil_instr *instr)
 {
    assert(instr->type == INSTR_PHI);
@@ -3677,6 +3846,24 @@ emit_extractval(struct dxil_module *m, struct dxil_instr *instr)
       instr->extractval.idx
    };
    return emit_record_no_abbrev(&m->buf, FUNC_CODE_INST_EXTRACTVAL,
+                                data, ARRAY_SIZE(data));
+}
+
+static bool
+emit_extractelt(struct dxil_module *m, struct dxil_instr *instr)
+{
+   assert(instr->type == INSTR_EXTRACTELT);
+   assert(instr->value.id > instr->extractelt.src->id);
+   assert(instr->value.id > instr->extractelt.type->id);
+   assert(instr->value.id > instr->extractelt.idx->id);
+
+   /* relative value ID, followed by absolute type ID (only if
+    * forward-declared), followed by index ID */
+   uint64_t data[] = {
+      instr->value.id - instr->extractelt.src->id,
+      instr->value.id - instr->extractelt.idx->id,
+   };
+   return emit_record_no_abbrev(&m->buf, FUNC_CODE_INST_EXTRACTELT,
                                 data, ARRAY_SIZE(data));
 }
 
@@ -3849,6 +4036,9 @@ emit_instr(struct dxil_module *m, struct dxil_func_def *func, struct dxil_instr 
    case INSTR_BR:
       return emit_branch(m, func, instr);
 
+   case INSTR_UNREACHABLE:
+      return emit_unreachable(m, instr);
+
    case INSTR_PHI:
       return emit_phi(m, func, instr);
 
@@ -3860,6 +4050,9 @@ emit_instr(struct dxil_module *m, struct dxil_func_def *func, struct dxil_instr 
 
    case INSTR_EXTRACTVAL:
       return emit_extractval(m, instr);
+
+   case INSTR_EXTRACTELT:
+      return emit_extractelt(m, instr);
 
    case INSTR_ALLOCA:
       return emit_alloca(m, instr);
@@ -3896,6 +4089,23 @@ emit_function(struct dxil_module *m, struct dxil_func_def *func)
          return false;
    }
 
+   uint32_t num_args = func->func->type->function_def.args.num_types;
+   if (num_args) {
+      if (!enter_subblock(m, DXIL_VALUE_SYMTAB_BLOCK, 4))
+         return false;
+
+      for (uint32_t i = 0; i < func->func->type->function_def.args.num_types; i++) {
+         const char *name = func->args[i].name;
+         if (name) {
+            if (!emit_symtab_entry(m, func->args[i].value->id, name))
+               return false;
+         }
+      }
+
+      if (!exit_block(m))
+         return false;
+   }
+
    return exit_block(m);
 }
 
@@ -3926,6 +4136,10 @@ assign_values(struct dxil_module *m)
    LIST_FOR_EACH_ENTRY(func_def, &m->func_def_list, head) {
       struct dxil_instr *instr;
       next_value_id = value_id_at_functions_start;
+      for (uint32_t i = 0; i < func_def->func->type->function_def.args.num_types; i++) {
+         func_def->args[i].value->id = next_value_id++;
+      }
+
       LIST_FOR_EACH_ENTRY(instr, &func_def->instr_list, head) {
          instr->value.id = next_value_id;
          if (instr->has_value)

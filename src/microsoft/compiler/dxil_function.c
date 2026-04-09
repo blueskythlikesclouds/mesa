@@ -115,11 +115,43 @@ static struct  predefined_func_descr predefined_funcs[] = {
 {"dx.op.dot4AddPacked", "i", "iiii", DXIL_ATTR_KIND_READ_NONE},
 {"dx.op.startVertexLocation", "i", "i", DXIL_ATTR_KIND_READ_NONE},
 {"dx.op.startInstanceLocation", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.primitiveIndex", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.rayFlags", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.geometryIndex", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.hitKind", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.instanceIndex", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.instanceID", "i", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.dispatchRaysIndex", "i", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.dispatchRaysDimensions", "i", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.objectRayDirection", "f", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.objectRayOrigin", "f", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.objectToWorld", "f", "iic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.rayTCurrent", "f", "i", DXIL_ATTR_KIND_READ_ONLY},
+{"dx.op.rayTMin", "f", "i", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.worldRayDirection", "f", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.worldRayOrigin", "f", "ic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.worldToObject", "f", "iic", DXIL_ATTR_KIND_READ_NONE},
+{"dx.op.ignoreHit", "v", "i", DXIL_ATTR_KIND_NO_RETURN},
+{"dx.op.acceptHitAndEndSearch", "v", "i", DXIL_ATTR_KIND_NO_RETURN},
+{"dx.op.createHandleForLib", "@", "is", DXIL_ATTR_KIND_READ_ONLY},
+{"dx.op.traceRay", "v", "i@iiiiiffffffff*s", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.reportHit", "b", "ifi*s", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.callShader", "v", "ii*s", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.allocateRayQuery", "i", "ii", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_TraceRayInline", "v", "ii@iiffffffff", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_Abort", "v", "ii", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_Proceed", "b", "ii", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_CommitProceduralPrimitiveHit", "v", "iif", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_CommitNonOpaqueTriangleHit", "v", "ii", DXIL_ATTR_KIND_NO_UNWIND},
+{"dx.op.rayQuery_StateScalar", "O", "ii", DXIL_ATTR_KIND_READ_ONLY},
+{"dx.op.rayQuery_StateVector", "O", "iic", DXIL_ATTR_KIND_READ_ONLY},
+{"dx.op.rayQuery_StateMatrix", "O", "iiic", DXIL_ATTR_KIND_READ_ONLY},
 };
 
 struct func_descr {
    const char *name;
    enum overload_type overload;
+   const struct dxil_type *struct_type;
 };
 
 struct func_rb_node {
@@ -145,17 +177,23 @@ func_compare_to_name_and_overload(const struct rb_node *node, const void *data)
    if (f->descr.overload > descr->overload)
       return 1;
 
+   if (f->descr.struct_type < descr->struct_type)
+      return -1;
+   if (f->descr.struct_type > descr->struct_type)
+      return 1;
+
    return strcmp(f->descr.name, descr->name);
 }
 
 static const struct dxil_func *
 allocate_function_from_predefined(struct dxil_module *mod,
-                                       const char *name,
-                                       enum overload_type overload)
+                                  const char *name,
+                                  enum overload_type overload,
+                                  const struct dxil_type *struct_type)
 {
    for (unsigned i = 0; i < ARRAY_SIZE(predefined_funcs); ++i) {
       if (!strcmp(predefined_funcs[i].base_name, name)) {
-         return dxil_alloc_func(mod, name, overload,
+         return dxil_alloc_func(mod, name, overload, struct_type,
                                 predefined_funcs[i].retval_descr,
                                 predefined_funcs[i].param_descr,
                                 predefined_funcs[i].attr);
@@ -165,16 +203,31 @@ allocate_function_from_predefined(struct dxil_module *mod,
 }
 
 const struct dxil_func *
-dxil_get_function(struct dxil_module *mod,
-                  const char *name, enum overload_type overload)
+get_function(struct dxil_module *mod,
+             const char *name, enum overload_type overload,
+             const struct dxil_type *struct_type)
 {
-   struct func_descr descr = { name, overload };
+   struct func_descr descr = { name, overload, struct_type };
    const struct rb_node *node = rb_tree_search(mod->functions, &descr,
                                                func_compare_to_name_and_overload);
    if (node)
       return func_rb_node(node)->func;
 
-   return allocate_function_from_predefined(mod, name, overload);
+   return allocate_function_from_predefined(mod, name, overload, struct_type);
+}
+
+const struct dxil_func *
+dxil_get_function(struct dxil_module *mod,
+                  const char *name, enum overload_type overload)
+{
+   return get_function(mod, name, overload, NULL);
+}
+
+const struct dxil_func *
+dxil_get_function_with_struct_type(struct dxil_module *mod,
+                                   const char *name, const struct dxil_type *struct_type)
+{
+   return get_function(mod, name, DXIL_NONE, struct_type);
 }
 
 static int func_compare_name(const struct rb_node *lhs, const struct rb_node *rhs)
@@ -185,18 +238,20 @@ static int func_compare_name(const struct rb_node *lhs, const struct rb_node *rh
 
 static void
 dxil_add_function(struct rb_tree *functions, const struct dxil_func *func,
-                  const char *name, enum overload_type overload)
+                  const char *name, enum overload_type overload, const struct dxil_type *struct_type)
 {
    struct func_rb_node *f = rzalloc(functions, struct func_rb_node);
    f->func = func;
    f->descr.name = name;
    f->descr.overload = overload;
+   f->descr.struct_type = struct_type;
    rb_tree_insert(functions, &f->node, func_compare_name);
 }
 
 static const struct dxil_type *
 get_type_from_string(struct dxil_module *mod, const char *param_descr,
-                     enum overload_type overload,  int *idx)
+                     enum overload_type overload, const struct dxil_type *struct_type,
+                     int *idx)
 {
    assert(param_descr);
    char type_id = param_descr[(*idx)++];
@@ -222,9 +277,10 @@ get_type_from_string(struct dxil_module *mod, const char *param_descr,
    case DXIL_FUNC_PARAM_RES_BIND: return dxil_module_get_res_bind_type(mod);
    case DXIL_FUNC_PARAM_RES_PROPS: return dxil_module_get_res_props_type(mod);
    case DXIL_FUNC_PARAM_POINTER: {
-         const struct dxil_type *target = get_type_from_string(mod, param_descr, overload, idx);
+         const struct dxil_type *target = get_type_from_string(mod, param_descr, overload, struct_type, idx);
          return dxil_module_get_pointer_type(mod, target);
-      }
+   }
+   case DXIL_FUNC_PARAM_STRUCT: return struct_type;
    case DXIL_FUNC_PARAM_FOURI32: return dxil_module_get_fouri32_type(mod);
    default:
       assert(0 && "unknown type identifier");
@@ -235,6 +291,7 @@ get_type_from_string(struct dxil_module *mod, const char *param_descr,
 const struct dxil_func *
 dxil_alloc_func_with_rettype(struct dxil_module *mod, const char *name,
                              enum overload_type overload,
+                             const struct dxil_type *struct_type,
                              const struct dxil_type *retval_type,
                              const char *param_descr,
                              enum dxil_attr_kind attr)
@@ -245,8 +302,8 @@ dxil_alloc_func_with_rettype(struct dxil_module *mod, const char *name,
    int index = 0;
    unsigned num_params = 0;
 
-   while (param_descr[num_params]) {
-      const struct dxil_type *t = get_type_from_string(mod, param_descr, overload, &index);
+   while (param_descr[index]) {
+      const struct dxil_type *t = get_type_from_string(mod, param_descr, overload, struct_type, &index);
       if (!t)
          return NULL;
       assert(num_params < MAX_FUNC_PARAMS);
@@ -263,25 +320,27 @@ dxil_alloc_func_with_rettype(struct dxil_module *mod, const char *name,
 
    char full_name[100];
    snprintf(full_name, sizeof (full_name), "%s%s%s", name,
-            overload == DXIL_NONE ? "" : ".", dxil_overload_suffix(overload));
+            overload != DXIL_NONE || struct_type ? "." : "",
+            struct_type ? dxil_type_get_struct_name(struct_type) : dxil_overload_suffix(overload));
+
    const struct dxil_func *func = dxil_add_function_decl(mod, full_name, func_type, attr);
 
    if (func)
-      dxil_add_function(mod->functions, func, name, overload);
+      dxil_add_function(mod->functions, func, name, overload, struct_type);
 
    return func;
 }
 
 const struct dxil_func *
 dxil_alloc_func(struct dxil_module *mod, const char *name, enum overload_type overload,
-                const char *retval_type_descr,
+                const struct dxil_type *struct_type, const char *retval_type_descr,
                 const char *param_descr, enum dxil_attr_kind attr)
 {
 
    int index = 0;
-   const struct dxil_type *retval_type = get_type_from_string(mod, retval_type_descr, overload, &index);
+   const struct dxil_type *retval_type = get_type_from_string(mod, retval_type_descr, overload, struct_type, &index);
    assert(retval_type_descr[index] == 0);
 
-   return dxil_alloc_func_with_rettype(mod, name, overload, retval_type,
+   return dxil_alloc_func_with_rettype(mod, name, overload, struct_type, retval_type,
                                        param_descr, attr);
 }

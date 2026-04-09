@@ -80,6 +80,266 @@ dxil_container_add_features(struct dxil_container *c,
    return add_part(c, DXIL_SFI0, &bits, sizeof(uint64_t));
 }
 
+struct dxil_runtime_data_header {
+   uint32_t version;
+   uint32_t part_count;
+};
+
+enum dxil_runtime_data_part_type {
+   DXIL_RUNTIME_DATA_PART_INVALID = 0,
+   DXIL_RUNTIME_DATA_PART_STRING_BUFFER = 1,
+   DXIL_RUNTIME_DATA_PART_INDEX_ARRAYS = 2,
+   DXIL_RUNTIME_DATA_PART_RESOURCE_TABLE = 3,
+   DXIL_RUNTIME_DATA_PART_FUNCTION_TABLE = 4,
+   DXIL_RUNTIME_DATA_PART_RAW_BYTES = 5,
+   DXIL_RUNTIME_DATA_PART_SUBOBJECT_TABLE = 6,
+   DXIL_RUNTIME_DATA_PART_NODE_ID_TABLE = 7,
+   DXIL_RUNTIME_DATA_PART_NODE_SHADER_IO_ATTRIB_TABLE = 8,
+   DXIL_RUNTIME_DATA_PART_NODE_SHADER_FUNC_ATTRIB_TABLE = 9,
+   DXIL_RUNTIME_DATA_PART_IO_NODE_TABLE = 10,
+   DXIL_RUNTIME_DATA_PART_NODE_SHADER_INFO_TABLE = 11,
+};
+
+struct dxil_runtime_data_part_header {
+   uint32_t type;
+   uint32_t size;
+};
+
+struct dxil_runtime_data_table_header {
+   struct dxil_runtime_data_part_header part_header;
+   uint32_t record_count;
+   uint32_t record_stride;
+};
+
+struct dxil_runtime_data_resource_info {
+   uint32_t class;
+   uint32_t kind;
+   uint32_t id;
+   uint32_t space;
+   uint32_t lower_bound;
+   uint32_t upper_bound;
+   uint32_t name;
+   uint32_t flags;
+};
+
+struct dxil_runtime_data_function_info {
+   uint32_t name;
+   uint32_t unmangled_name;
+   uint32_t resources;
+   uint32_t function_dependencies;
+   uint32_t shader_kind;
+   uint32_t payload_size_in_bytes;
+   uint32_t attribute_size_in_bytes;
+   uint32_t feature_info_1;
+   uint32_t feature_info_2;
+   uint32_t shader_stage_flag;
+   uint32_t min_shader_target;
+};
+
+struct dxil_runtime_data_function_info_2 {
+   struct dxil_runtime_data_function_info base;
+   uint8_t minimum_expected_wave_lane_count;
+   uint8_t maximum_expected_wave_lane_count;
+   uint16_t shader_flags;
+   union {
+      uint32_t raw_shader_ref;
+   };
+};
+
+bool
+dxil_container_add_runtime_data(struct dxil_container *c,
+                                struct dxil_module *m,
+                                struct dxil_runtime_data *runtime_data) {
+   struct _mesa_string_buffer *string_buffer = _mesa_string_buffer_create(m->ralloc_ctx, 1024);
+   if (!string_buffer || !_mesa_string_buffer_append_len(string_buffer, "\0", 1))
+      return false;
+
+   bool has_resources = runtime_data->num_resources > 0;
+
+   struct dxil_runtime_data_part_header string_buffer_header;
+   string_buffer_header.type = DXIL_RUNTIME_DATA_PART_STRING_BUFFER;
+
+   struct dxil_runtime_data_table_header resource_table_header;
+   resource_table_header.part_header.type = DXIL_RUNTIME_DATA_PART_RESOURCE_TABLE;
+   resource_table_header.part_header.size = sizeof(struct dxil_runtime_data_table_header) - sizeof(struct dxil_runtime_data_part_header);
+   resource_table_header.record_count = runtime_data->num_resources;
+   resource_table_header.record_stride = sizeof(struct dxil_runtime_data_resource_info);
+   resource_table_header.part_header.size += resource_table_header.record_count * resource_table_header.record_stride;
+
+   uint32_t resource_name_offset = string_buffer->length;
+   for (uint32_t i = 0; i < runtime_data->num_resources; i++) {
+      if (!_mesa_string_buffer_append_len(string_buffer, runtime_data->resources[i].name, strlen(runtime_data->resources[i].name) + 1))
+         return false;
+   }
+
+   struct dxil_runtime_data_table_header function_table_header;
+   function_table_header.part_header.type = DXIL_RUNTIME_DATA_PART_FUNCTION_TABLE;
+   function_table_header.part_header.size = sizeof(struct dxil_runtime_data_table_header) - sizeof(struct dxil_runtime_data_part_header);
+   function_table_header.record_count = 1;
+   if (m->minor_validator >= 8) {
+      function_table_header.record_stride = sizeof(struct dxil_runtime_data_function_info_2);
+   } else {
+      function_table_header.record_stride = sizeof(struct dxil_runtime_data_function_info);
+   }
+   function_table_header.part_header.size += function_table_header.record_count * function_table_header.record_stride;
+
+   struct dxil_runtime_data_function_info_2 func_info;
+
+   func_info.base.name = string_buffer->length;
+   if (!_mesa_string_buffer_append_len(string_buffer, runtime_data->main_func_name, strlen(runtime_data->main_func_name) + 1))
+      return false;
+
+   func_info.base.unmangled_name = string_buffer->length;
+   if (!_mesa_string_buffer_append_len(string_buffer, runtime_data->main_func_unmangled_name, strlen(runtime_data->main_func_unmangled_name) + 1))
+      return false;
+
+   func_info.base.resources = has_resources ? 0 : UINT32_MAX;
+   func_info.base.function_dependencies = UINT32_MAX;
+   func_info.base.shader_kind = m->shader_kind;
+   func_info.base.payload_size_in_bytes = runtime_data->payload_size_in_bytes;
+   func_info.base.attribute_size_in_bytes = runtime_data->attribute_size_in_bytes;
+
+   uint64_t feature_info = *(uint64_t*)&m->feats;
+   func_info.base.feature_info_1 = feature_info & 0xFFFFFFFF;
+   func_info.base.feature_info_2 = feature_info >> 32;
+
+   uint32_t minor_version = 3;
+   if (m->feats.sample_cmp_bias_gradient || m->feats.extended_command_info)
+      minor_version = 8;
+   else if (m->feats.advanced_texture_ops || m->feats.writable_msaa)
+      minor_version = 7;
+   else if (m->feats.atomic_int64_typed ||
+            m->feats.atomic_int64_tgsm ||
+            m->feats.atomic_int64_heap_resource ||
+            m->feats.resource_descriptor_heap_indexing ||
+            m->feats.sampler_descriptor_heap_indexing)
+      minor_version = 6;
+   else if (m->feats.raytracing_tier_1_1 || m->feats.sampler_feedback)
+      minor_version = 5;
+   else if (m->feats.shading_rate)
+      minor_version = 4;
+
+   func_info.base.shader_stage_flag = (1 << m->shader_kind);
+   func_info.base.min_shader_target = (m->shader_kind << 16) | (6 << 4) | minor_version;
+
+   func_info.minimum_expected_wave_lane_count = 0;
+   func_info.maximum_expected_wave_lane_count = 0;
+   func_info.shader_flags = 0;
+   func_info.raw_shader_ref = UINT32_MAX;
+
+   while (string_buffer->length & 3) {
+      if (!_mesa_string_buffer_append_len(string_buffer, "\0", 1))
+         return false;
+   }
+
+   string_buffer_header.size = string_buffer->length;
+
+   struct dxil_runtime_data_part_header index_table_header;
+   index_table_header.type = DXIL_RUNTIME_DATA_PART_INDEX_ARRAYS;
+   index_table_header.size = sizeof(uint32_t) + resource_table_header.record_count * sizeof(uint32_t);
+
+   struct dxil_runtime_data_header header;
+   header.version = 0x10;
+   header.part_count = has_resources ? 4 : 2;
+
+   uint32_t part_size = sizeof(header);
+   part_size += header.part_count * sizeof(uint32_t);
+   part_size += sizeof(string_buffer_header) + string_buffer_header.size;
+
+   if (has_resources)
+      part_size += sizeof(resource_table_header.part_header) + resource_table_header.part_header.size;
+
+   part_size += sizeof(function_table_header.part_header) + function_table_header.part_header.size;
+
+   if (has_resources)
+      part_size += sizeof(index_table_header) + index_table_header.size;
+
+   if (!add_part_header(c, DXIL_RDAT, part_size))
+      return false;
+
+   if (!blob_write_bytes(&c->parts, &header, sizeof(header)))
+      return false;
+
+   // String Buffer Offset
+   uint32_t part_offset = sizeof(header) + header.part_count * sizeof(uint32_t);
+
+   if (!blob_write_uint32(&c->parts, part_offset))
+      return false;
+
+   part_offset += sizeof(string_buffer_header) + string_buffer_header.size;
+
+   // Resource Table Offset
+   if (has_resources) {
+      if (!blob_write_uint32(&c->parts, part_offset))
+         return false;
+
+      part_offset += sizeof(resource_table_header.part_header) + resource_table_header.part_header.size;
+   }
+
+   // Function Table Offset
+   if (!blob_write_uint32(&c->parts, part_offset))
+      return false;
+
+   part_offset += sizeof(function_table_header.part_header) + function_table_header.part_header.size;
+
+   // Index Table Offset
+   if (has_resources) {
+      if (!blob_write_uint32(&c->parts, part_offset))
+         return false;
+   }
+
+   // String Table
+   if (!blob_write_bytes(&c->parts, &string_buffer_header, sizeof(string_buffer_header)))
+      return false;
+   if (!blob_write_bytes(&c->parts, string_buffer->buf, string_buffer->length))
+      return false;
+
+   // Resource Table
+   if (has_resources) {
+      if (!blob_write_bytes(&c->parts, &resource_table_header, sizeof(resource_table_header)))
+         return false;
+
+      for (uint32_t i = 0; i < runtime_data->num_resources; i++) {
+         struct dxil_runtime_data_resource *resource = &runtime_data->resources[i];
+
+         struct dxil_runtime_data_resource_info res_info;
+         res_info.class = resource->class;
+         res_info.kind = resource->kind;
+         res_info.id = resource->id;
+         res_info.space = resource->space;
+         res_info.lower_bound = resource->lower_bound;
+         res_info.upper_bound = resource->upper_bound;
+         res_info.name = resource_name_offset;
+         res_info.flags = 0;
+
+         if (!blob_write_bytes(&c->parts, &res_info, sizeof(res_info)))
+            return false;
+
+         resource_name_offset += strlen(resource->name) + 1;
+      }
+   }
+
+   // Function Table
+   if (!blob_write_bytes(&c->parts, &function_table_header, sizeof(function_table_header)))
+      return false;
+   if (!blob_write_bytes(&c->parts, &func_info, function_table_header.record_stride))
+      return false;
+
+   // Index Table
+   if (has_resources) {
+      if (!blob_write_bytes(&c->parts, &index_table_header, sizeof(index_table_header)))
+         return false;
+      if (!blob_write_uint32(&c->parts, runtime_data->num_resources))
+         return false;
+      for (uint32_t i = 0; i < runtime_data->num_resources; i++) {
+         if (!blob_write_uint32(&c->parts, i))
+            return false;
+      }
+   }
+
+   return true;
+}
+
 typedef struct {
    struct {
       const char *name;
@@ -334,7 +594,8 @@ dxil_container_add_module(struct dxil_container *c,
                           const struct dxil_module *m)
 {
    assert(m->buf.buf_bits == 0); // make sure the module is fully flushed
-   uint32_t version = (m->shader_kind << 16) |
+   enum dxil_shader_kind shader_kind = m->emit_library ? DXIL_LIBRARY_SHADER : m->shader_kind;
+   uint32_t version = (shader_kind << 16) |
                       (m->major_version << 4) |
                       m->minor_version;
    uint32_t size = 6 * sizeof(uint32_t) + m->buf.blob.size;

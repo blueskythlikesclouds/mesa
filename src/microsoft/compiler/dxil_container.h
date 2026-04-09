@@ -96,6 +96,25 @@ struct dxil_validation_state {
    uint32_t num_resources;
 };
 
+struct dxil_runtime_data_resource {
+   uint32_t class;
+   uint32_t kind;
+   uint32_t id;
+   uint32_t space;
+   uint32_t lower_bound;
+   uint32_t upper_bound;
+   const char *name;
+};
+
+struct dxil_runtime_data {
+   const char *main_func_name;
+   const char *main_func_unmangled_name;
+   struct dxil_runtime_data_resource *resources;
+   uint32_t num_resources;
+   uint32_t payload_size_in_bytes;
+   uint32_t attribute_size_in_bytes;
+};
+
 void
 dxil_container_init(struct dxil_container *c);
 
@@ -107,6 +126,11 @@ struct dxil_features;
 bool
 dxil_container_add_features(struct dxil_container *c,
                             const struct dxil_features *features);
+
+bool
+dxil_container_add_runtime_data(struct dxil_container *c,
+                                struct dxil_module *m,
+                                struct dxil_runtime_data *runtime_data);
 
 
 bool

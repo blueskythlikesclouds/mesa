@@ -118,9 +118,21 @@ struct dxil_attrib {
    } value;
 };
 
-struct attrib_set {
-   struct dxil_attrib attrs[2];
+#define DXIL_MAX_ATTRS 3
+
+#define DXIL_ATTR_GROUP_FUNC   0
+#define DXIL_ATTR_GROUP_RET    (DXIL_ATTR_GROUP_FUNC + 1)
+#define DXIL_ATTR_GROUP_ARG(N) (DXIL_ATTR_GROUP_RET + 1 + N)
+
+struct attrib_group {
+   struct dxil_attrib attrs[DXIL_MAX_ATTRS];
    unsigned num_attrs;
+};
+
+#define DXIL_MAX_ATTR_GROUPS 4
+
+struct attrib_set {
+   struct attrib_group attr_groups[DXIL_MAX_ATTR_GROUPS];
    struct list_head head;
 };
 
@@ -159,6 +171,12 @@ struct dxil_instr_extractval {
    const struct dxil_value *src;
    const struct dxil_type *type;
    unsigned int idx;
+};
+
+struct dxil_instr_extractelt {
+   const struct dxil_value *src;
+   const struct dxil_type *type;
+   const struct dxil_value *idx;
 };
 
 struct dxil_instr_br {
@@ -224,10 +242,12 @@ struct dxil_instr {
       INSTR_SELECT,
       INSTR_CAST,
       INSTR_BR,
+      INSTR_UNREACHABLE,
       INSTR_PHI,
       INSTR_CALL,
       INSTR_RET,
       INSTR_EXTRACTVAL,
+      INSTR_EXTRACTELT,
       INSTR_ALLOCA,
       INSTR_GEP,
       INSTR_LOAD,
@@ -244,6 +264,7 @@ struct dxil_instr {
       struct dxil_instr_call call;
       struct dxil_instr_ret ret;
       struct dxil_instr_extractval extractval;
+      struct dxil_instr_extractelt extractelt;
       struct dxil_instr_phi phi;
       struct dxil_instr_br br;
       struct dxil_instr_alloca alloca;

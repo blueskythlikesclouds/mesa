@@ -57,6 +57,18 @@ stage_to_enum(char *stage)
       return MESA_SHADER_FRAGMENT;
    else if (!strcmp(stage, "compute"))
       return MESA_SHADER_COMPUTE;
+   else if (!strcmp(stage, "raygen"))
+      return MESA_SHADER_RAYGEN;
+   else if (!strcmp(stage, "any-hit"))
+      return MESA_SHADER_ANY_HIT;
+   else if (!strcmp(stage, "closest-hit"))
+      return MESA_SHADER_CLOSEST_HIT;
+   else if (!strcmp(stage, "miss"))
+      return MESA_SHADER_MISS;
+   else if (!strcmp(stage, "intersection"))
+      return MESA_SHADER_INTERSECTION;
+   else if (!strcmp(stage, "callable"))
+      return MESA_SHADER_CALLABLE;
    else
       return MESA_SHADER_NONE;
 }
@@ -73,7 +85,7 @@ struct shader {
    nir_shader *nir;
 };
 
-bool validate = false, debug = false;
+bool validate = false, debug = true;
 enum dxil_validator_version val_ver = DXIL_VALIDATOR_1_4;
 
 struct nir_shader_compiler_options nir_options;
@@ -168,7 +180,7 @@ main(int argc, char **argv)
       {"validatorver", required_argument, 0, 'x'},
       {0, 0, 0, 0}};
 
-   struct shader shaders[MESA_SHADER_COMPUTE + 1];
+   struct shader shaders[MESA_SHADER_CALLABLE + 1];
    memset(shaders, 0, sizeof(shaders));
    struct shader cur_shader = {
       .entry_point = "main",
@@ -262,7 +274,7 @@ main(int argc, char **argv)
    struct dxil_logger logger_inner = {.priv = NULL,
                                       .log = log_spirv_to_dxil_error};
 
-   for (uint32_t i = 0; i <= MESA_SHADER_COMPUTE; ++i) {
+   for (uint32_t i = 0; i <= MESA_SHADER_CALLABLE; ++i) {
       if (!shaders[i].nir)
          continue;
       struct blob dxil_blob;

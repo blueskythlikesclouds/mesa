@@ -48,6 +48,13 @@ enum dxil_shader_kind {
    DXIL_HULL_SHADER = 3,
    DXIL_DOMAIN_SHADER = 4,
    DXIL_COMPUTE_SHADER = 5,
+   DXIL_LIBRARY_SHADER = 6,
+   DXIL_RAYGEN_SHADER = 7,
+   DXIL_INTERSECTION_SHADER = 8,
+   DXIL_ANY_HIT_SHADER = 9,
+   DXIL_CLOSEST_HIT_SHADER = 10,
+   DXIL_MISS_SHADER = 11,
+   DXIL_CALLABLE_SHADER = 12,
 };
 
 extern int debug_dxil;
@@ -173,6 +180,21 @@ struct dxil_shader_info {
    unsigned has_per_sample_input:1;
 };
 
+enum dxil_func_arg_qualifier {
+   DXIL_FUNC_ARG_QUALIFIER_IN,
+   DXIL_FUNC_ARG_QUALIFIER_OUT,
+   DXIL_FUNC_ARG_QUALIFIER_INOUT,
+};
+
+struct dxil_func_arg {
+   struct dxil_value *value;
+   const char *name;
+   const char *semantic;
+   enum dxil_func_arg_qualifier qualifier;
+};
+
+#define DXIL_FUNC_MAX_ARGS 2
+
 struct dxil_func_def {
    struct list_head head;
    const struct dxil_func *func;
@@ -181,11 +203,14 @@ struct dxil_func_def {
    int *basic_block_ids; /* maps from "user" ids to LLVM ids */
    size_t num_basic_block_ids;
    unsigned curr_block;
+
+   struct dxil_func_arg args[DXIL_FUNC_MAX_ARGS];
 };
 
 struct dxil_module {
    void *ralloc_ctx;
    enum dxil_shader_kind shader_kind;
+   bool emit_library;
    unsigned major_version, minor_version;
    unsigned major_validator, minor_validator;
    struct dxil_features feats;
@@ -283,23 +308,31 @@ const struct dxil_value *
 dxil_add_global_var(struct dxil_module *m, const char *name,
                     const struct dxil_type *type,
                     enum dxil_address_space as, int align,
-                    const struct dxil_value *value);
+                    bool constant, const struct dxil_value *value);
 
 const struct dxil_value *
 dxil_add_global_ptr_var(struct dxil_module *m, const char *name,
                         const struct dxil_type *type,
                         enum dxil_address_space as, int align,
-                        const struct dxil_value *value);
+                        bool constant, const struct dxil_value *value);
 
 struct dxil_func_def *
 dxil_add_function_def(struct dxil_module *m, const char *name,
                       const struct dxil_type *type, unsigned num_blocks,
-                      const char *const *attr_keys, const char *const *attr_values);
+                      enum dxil_attr_kind enum_attr,
+                      const char *const *attr_keys, const char *const *attr_values,
+                      const uint32_t *arg_enum_attrs);
 
 const struct dxil_func *
 dxil_add_function_decl(struct dxil_module *m, const char *name,
                        const struct dxil_type *type,
                        enum dxil_attr_kind attr);
+
+const char *
+dxil_func_get_name(const struct dxil_func *func);
+
+uint32_t
+dxil_func_get_num_args(const struct dxil_func *func);
 
 const struct dxil_type *
 dxil_module_get_void_type(struct dxil_module *m);
@@ -370,6 +403,18 @@ dxil_module_add_function_type(struct dxil_module *m,
                               const struct dxil_type *ret_type,
                               const struct dxil_type **arg_types,
                               size_t num_arg_types);
+
+const struct dxil_type *
+dxil_type_get_pointer_target_type(const struct dxil_type *type);
+
+const char *
+dxil_type_get_struct_name(const struct dxil_type *type);
+
+bool
+dxil_type_is_array_type(const struct dxil_type *type);
+
+size_t
+dxil_type_get_num_array_elems(const struct dxil_type *type);
 
 nir_alu_type
 dxil_type_to_nir_type(const struct dxil_type *type);
@@ -511,6 +556,10 @@ dxil_emit_extractval(struct dxil_module *m, const struct dxil_value *src,
                      const unsigned int index);
 
 const struct dxil_value *
+dxil_emit_extractelt(struct dxil_module *m, const struct dxil_value *src,
+                     const struct dxil_value *index);
+
+const struct dxil_value *
 dxil_emit_cast(struct dxil_module *m, enum dxil_cast_opcode opcode,
                const struct dxil_type *type,
                const struct dxil_value *value);
@@ -518,6 +567,9 @@ dxil_emit_cast(struct dxil_module *m, enum dxil_cast_opcode opcode,
 bool
 dxil_emit_branch(struct dxil_module *m, const struct dxil_value *cond,
                  unsigned true_block, unsigned false_block);
+
+bool
+dxil_emit_unreachable(struct dxil_module *m);
 
 const struct dxil_value *
 dxil_instr_get_return_value(struct dxil_instr *instr);
@@ -552,7 +604,8 @@ dxil_emit_alloca(struct dxil_module *m, const struct dxil_type *alloc_type,
 const struct dxil_value *
 dxil_emit_gep_inbounds(struct dxil_module *m,
                        const struct dxil_value **operands,
-                       size_t num_operands);
+                       size_t num_operands,
+                       const uint32_t *struct_field_indices);
 
 const struct dxil_value *
 dxil_emit_load(struct dxil_module *m, const struct dxil_value *ptr,

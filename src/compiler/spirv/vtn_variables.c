@@ -2498,7 +2498,8 @@ vtn_create_variable(struct vtn_builder *b, struct vtn_value *val,
        var->mode == vtn_variable_mode_image ||
        var->mode == vtn_variable_mode_ubo ||
        var->mode == vtn_variable_mode_ssbo ||
-       var->mode == vtn_variable_mode_atomic_counter) {
+       var->mode == vtn_variable_mode_atomic_counter ||
+       var->mode == vtn_variable_mode_accel_struct) {
       /* XXX: We still need the binding information in the nir_variable
        * for these. We should fix that.
        */

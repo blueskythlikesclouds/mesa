@@ -267,7 +267,6 @@ lower_buffer_device_address(nir_builder *b, nir_intrinsic_instr *intr, void *dat
    case nir_intrinsic_deref_atomic_swap:
       break;
    default:
-      assert(intr->intrinsic != nir_intrinsic_copy_deref);
       return false;
    }
    nir_deref_instr *deref = nir_src_as_deref(intr->src[0]);

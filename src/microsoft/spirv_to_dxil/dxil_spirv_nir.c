@@ -80,6 +80,8 @@ spirv_caps = {
    .Float64 = true,
    .Tessellation = true,
    .PhysicalStorageBufferAddresses = true,
+   .RayQueryKHR = true,
+   .RayTracingKHR = true,
 };
 
 static const struct spirv_to_nir_options
@@ -140,8 +142,7 @@ dxil_spirv_nir_prep(nir_shader *nir)
    NIR_PASS(_, nir, nir_split_per_member_structs);
 
    NIR_PASS(_, nir, nir_remove_dead_variables,
-              nir_var_shader_in | nir_var_shader_out | nir_var_system_value |
-              nir_var_shader_call_data | nir_var_ray_hit_attrib,
+              nir_var_shader_in | nir_var_shader_out | nir_var_system_value,
               NULL);
    
    /* This needs to happen after remove_dead_vars because GLSLang likes to
@@ -901,12 +902,30 @@ merge_ubos_and_ssbos(nir_shader *nir)
    return progress;
 }
 
+static bool
+accel_struct_can_remove_var(nir_variable *var, void *data)
+{
+   if (!(var->data.mode & nir_var_uniform))
+      return true;
+
+   uint64_t key = (uint64_t)var->data.descriptor_set | ((uint64_t)var->data.binding << 32ull);
+   return _mesa_hash_table_u64_search((struct hash_table_u64 *)data, key) == NULL;
+}
+
 void
 dxil_spirv_nir_passes(nir_shader *nir,
                       const struct dxil_spirv_runtime_conf *conf,
                       struct dxil_spirv_metadata *metadata)
 {
    glsl_type_singleton_init_or_ref();
+
+   if (mesa_shader_stage_is_rt(nir->info.stage)) {
+      NIR_PASS(_, nir, dxil_nir_lower_rt_payloads_to_temps);
+      NIR_PASS(_, nir, dxil_nir_wrap_rt_variables_in_structs);
+   }
+
+   struct hash_table_u64 *accel_struct_hash_table = _mesa_hash_table_u64_create(nir);
+   NIR_PASS(_, nir, dxil_nir_lower_accel_struct_intrinsics, accel_struct_hash_table);
 
    NIR_PASS(_, nir, nir_opt_vectorize_io_vars,
               nir_var_shader_out |
@@ -1121,9 +1140,18 @@ dxil_spirv_nir_passes(nir_shader *nir,
    NIR_PASS(_, nir, dxil_nir_lower_ubo_array_one_to_static);
    NIR_PASS(_, nir, nir_opt_dce);
    NIR_PASS(_, nir, nir_remove_dead_derefs);
+
+   nir_remove_dead_variables_options remove_dead_variables_options = {
+      .can_remove_var = accel_struct_can_remove_var,
+      .can_remove_var_data = accel_struct_hash_table,
+   };
+
    NIR_PASS(_, nir, nir_remove_dead_variables,
               nir_var_uniform | nir_var_shader_in | nir_var_shader_out,
-              NULL);
+              &remove_dead_variables_options);
+
+   _mesa_hash_table_u64_destroy(accel_struct_hash_table);
+
    NIR_PASS(_, nir, merge_ubos_and_ssbos);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {

@@ -35,6 +35,7 @@
 #define DXIL_FUNC_PARAM_FLOAT16 'e'
 #define DXIL_FUNC_PARAM_HANDLE  '@'
 #define DXIL_FUNC_PARAM_POINTER '*'
+#define DXIL_FUNC_PARAM_STRUCT 's'
 #define DXIL_FUNC_PARAM_VOID 'v'
 #define DXIL_FUNC_PARAM_FROM_OVERLOAD 'O'
 #define DXIL_FUNC_PARAM_RESRET 'R'
@@ -73,7 +74,7 @@ dxil_get_overload_type(struct dxil_module *mod, enum overload_type overload);
  */
 
 const struct dxil_func *
-dxil_alloc_func(struct dxil_module *mod, const char *name, enum overload_type overload,
+dxil_alloc_func(struct dxil_module *mod, const char *name, enum overload_type overload, const struct dxil_type *struct_type,
                 const char *retval_type_descr, const char *param_descr, enum dxil_attr_kind attr);
 
 /* For specifically constructed return types one can also create the return type
@@ -81,6 +82,7 @@ dxil_alloc_func(struct dxil_module *mod, const char *name, enum overload_type ov
  */
 const struct dxil_func *
 dxil_alloc_func_with_rettype(struct dxil_module *mod, const char *name, enum overload_type overload,
+                             const struct dxil_type *struct_type,
                              const struct dxil_type *retval_type, const char *param_descr,
                              enum dxil_attr_kind attr);
 
@@ -93,5 +95,9 @@ dxil_alloc_func_with_rettype(struct dxil_module *mod, const char *name, enum ove
 const struct dxil_func *
 dxil_get_function(struct dxil_module *mod, const char *name,
                   enum overload_type overload);
+
+const struct dxil_func *
+dxil_get_function_with_struct_type(struct dxil_module *mod, const char *name,
+                                   const struct dxil_type *struct_type);
 
 #endif // DXIL_FUNCTION_H

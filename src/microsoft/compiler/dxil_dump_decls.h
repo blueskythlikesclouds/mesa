@@ -70,7 +70,11 @@ dump_instr_ret(struct dxil_dumper *d, struct dxil_instr_ret *ret);
 static void
 dump_instr_extractval(struct dxil_dumper *d, struct dxil_instr_extractval *ret);
 static void
+dump_instr_extractelt(struct dxil_dumper *d, struct dxil_instr_extractelt *ret);
+static void
 dump_instr_branch(struct dxil_dumper *d, struct dxil_instr_br *br);
+static void
+dump_instr_unreachable(struct dxil_dumper *d);
 static void
 dump_instr_phi(struct dxil_dumper *d, struct dxil_instr_phi *phi);
 static void
